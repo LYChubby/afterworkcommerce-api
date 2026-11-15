@@ -18,17 +18,34 @@ class InventoryService
     public function reserveForOrderItem(
         int $orderItemId
     ): InventoryReservation {
-        return DB::transaction(function () use ($orderItemId) {
+        // order_id bersifat tetap, sehingga boleh dibaca sebelum lock.
+        $initialItem = OrderItem::query()->findOrFail($orderItemId);
 
-            // Kunci item pesanan
+        return DB::transaction(function () use ($orderItemId, $initialItem) {
+            // Urutan lock standar: order -> item/reservation -> variant.
+            $order = Order::query()
+                ->lockForUpdate()
+                ->findOrFail($initialItem->order_id);
+
             $item = OrderItem::query()
                 ->lockForUpdate()
                 ->findOrFail($orderItemId);
 
-            // Kunci pesanan
-            $order = Order::query()
+            if ($item->order_id !== $order->id) {
+                throw new RuntimeException(
+                    'Item pesanan tidak sesuai dengan pesanan.'
+                );
+            }
+
+            // Retry request tidak boleh membuat reservasi kedua.
+            $existingReservation = InventoryReservation::query()
+                ->where('order_item_id', $item->id)
                 ->lockForUpdate()
-                ->findOrFail($item->order_id);
+                ->first();
+
+            if ($existingReservation) {
+                return $existingReservation;
+            }
 
             if ($order->status !== 'pending') {
                 throw new RuntimeException(
@@ -51,25 +68,18 @@ class InventoryService
                 );
             }
 
-            // Cegah reservasi ganda untuk item yang sama
-            $existingReservation = InventoryReservation::query()
-                ->where('order_item_id', $item->id)
-                ->lockForUpdate()
-                ->first();
-
-            if ($existingReservation) {
-                throw new RuntimeException(
-                    'Item pesanan sudah memiliki reservasi stok.'
-                );
-            }
-
             if (!$item->product_variant_id) {
                 throw new RuntimeException(
                     'Varian produk tidak tersedia.'
                 );
             }
 
-            // Kunci varian agar tidak diubah transaksi lain
+            if ($item->quantity < 1) {
+                throw new RuntimeException(
+                    'Jumlah item pesanan tidak valid.'
+                );
+            }
+
             $variant = ProductVariant::query()
                 ->lockForUpdate()
                 ->findOrFail($item->product_variant_id);
@@ -80,10 +90,8 @@ class InventoryService
                 );
             }
 
-            $availableStock = (
-                $variant->stock_on_hand -
-                $variant->stock_reserved
-            );
+            $availableStock =
+                $variant->stock_on_hand - $variant->stock_reserved;
 
             if ($availableStock < $item->quantity) {
                 throw new RuntimeException(
@@ -91,15 +99,12 @@ class InventoryService
                 );
             }
 
-            // Snapshot stok sebelum perubahan
             $stockOnHandBefore = $variant->stock_on_hand;
             $stockReservedBefore = $variant->stock_reserved;
 
-            // Tambahkan stok yang dicadangkan
             $variant->stock_reserved += $item->quantity;
             $variant->save();
 
-            // Buat reservasi
             $reservation = InventoryReservation::create([
                 'order_id' => $order->id,
                 'order_item_id' => $item->id,
@@ -109,7 +114,6 @@ class InventoryService
                 'expires_at' => $order->payment_deadline_at,
             ]);
 
-            // Catat riwayat perubahan stok
             InventoryMovement::create([
                 'warehouse_id' => $order->warehouse_id,
                 'product_variant_id' => $variant->id,
@@ -126,22 +130,41 @@ class InventoryService
             ]);
 
             return $reservation;
-        });
+        }, 3);
     }
 
     /**
-     * Mengonfirmasi reservasi setelah pembayaran berhasil diverifikasi.
+     * Mengonfirmasi reservasi setelah pembayaran diverifikasi.
+     *
+     * Order harus sudah memiliki payment_status = paid
+     * dan paid_at harus menunjukkan pembayaran sebelum deadline.
      */
     public function confirmReservation(
         int $reservationId
     ): InventoryReservation {
-        return DB::transaction(function () use ($reservationId) {
+        // Ambil order_id untuk menentukan lock pertama.
+        $initialReservation = InventoryReservation::query()
+            ->findOrFail($reservationId);
+
+        return DB::transaction(function () use (
+            $reservationId,
+            $initialReservation
+        ) {
+            $order = Order::query()
+                ->lockForUpdate()
+                ->findOrFail($initialReservation->order_id);
 
             $reservation = InventoryReservation::query()
                 ->lockForUpdate()
                 ->findOrFail($reservationId);
 
-            // Idempotent: tidak mengurangi stok dua kali
+            if ($reservation->order_id !== $order->id) {
+                throw new RuntimeException(
+                    'Reservasi tidak sesuai dengan pesanan.'
+                );
+            }
+
+            // Idempotent: tidak mengurangi stok dua kali.
             if ($reservation->status === 'confirmed') {
                 return $reservation;
             }
@@ -149,6 +172,27 @@ class InventoryService
             if ($reservation->status !== 'active') {
                 throw new RuntimeException(
                     'Reservasi tidak dapat dikonfirmasi.'
+                );
+            }
+
+            if ($order->status === 'cancelled') {
+                throw new RuntimeException(
+                    'Pesanan sudah dibatalkan.'
+                );
+            }
+
+            if ($order->payment_status !== 'paid' || !$order->paid_at) {
+                throw new RuntimeException(
+                    'Pembayaran pesanan belum diverifikasi.'
+                );
+            }
+
+            if (
+                !$reservation->expires_at ||
+                $order->paid_at->greaterThan($reservation->expires_at)
+            ) {
+                throw new RuntimeException(
+                    'Pembayaran terjadi setelah batas waktu reservasi.'
                 );
             }
 
@@ -168,7 +212,6 @@ class InventoryService
             $stockOnHandBefore = $variant->stock_on_hand;
             $stockReservedBefore = $variant->stock_reserved;
 
-            // Stok fisik berkurang dan reservasi dilepaskan
             $variant->stock_on_hand -= $reservation->quantity;
             $variant->stock_reserved -= $reservation->quantity;
             $variant->save();
@@ -176,8 +219,6 @@ class InventoryService
             $reservation->status = 'confirmed';
             $reservation->confirmed_at = now();
             $reservation->save();
-
-            $order = Order::findOrFail($reservation->order_id);
 
             InventoryMovement::create([
                 'warehouse_id' => $order->warehouse_id,
@@ -195,7 +236,7 @@ class InventoryService
             ]);
 
             return $reservation;
-        });
+        }, 3);
     }
 
     /**
@@ -211,23 +252,34 @@ class InventoryService
             );
         }
 
+        $initialReservation = InventoryReservation::query()
+            ->findOrFail($reservationId);
+
         return DB::transaction(function () use (
             $reservationId,
-            $finalStatus
+            $finalStatus,
+            $initialReservation
         ) {
+            $order = Order::query()
+                ->lockForUpdate()
+                ->findOrFail($initialReservation->order_id);
 
             $reservation = InventoryReservation::query()
                 ->lockForUpdate()
                 ->findOrFail($reservationId);
 
-            // Operasi berulang tidak mengubah stok lagi
-            if (
-                in_array(
-                    $reservation->status,
-                    ['released', 'expired'],
-                    true
-                )
-            ) {
+            if ($reservation->order_id !== $order->id) {
+                throw new RuntimeException(
+                    'Reservasi tidak sesuai dengan pesanan.'
+                );
+            }
+
+            // Operasi berulang tidak mengubah stok lagi.
+            if (in_array(
+                $reservation->status,
+                ['released', 'expired'],
+                true
+            )) {
                 return $reservation;
             }
 
@@ -235,6 +287,37 @@ class InventoryService
                 throw new RuntimeException(
                     'Reservasi tidak dapat dilepaskan.'
                 );
+            }
+
+            if ($order->payment_status !== 'pending') {
+                throw new RuntimeException(
+                    'Reservasi pesanan yang sudah dibayar tidak dapat dilepaskan.'
+                );
+            }
+
+            if ($finalStatus === 'released') {
+                if ($order->status !== 'cancelled') {
+                    throw new RuntimeException(
+                        'Pesanan harus dibatalkan sebelum reservasi dilepaskan.'
+                    );
+                }
+            }
+
+            if ($finalStatus === 'expired') {
+                if ($order->status !== 'pending') {
+                    throw new RuntimeException(
+                        'Hanya pesanan pending yang dapat kedaluwarsa.'
+                    );
+                }
+
+                if (
+                    !$reservation->expires_at ||
+                    $reservation->expires_at->isFuture()
+                ) {
+                    throw new RuntimeException(
+                        'Batas waktu reservasi belum berakhir.'
+                    );
+                }
             }
 
             $variant = ProductVariant::query()
@@ -250,15 +333,12 @@ class InventoryService
             $stockOnHandBefore = $variant->stock_on_hand;
             $stockReservedBefore = $variant->stock_reserved;
 
-            // Kembalikan stok ke jumlah tersedia
             $variant->stock_reserved -= $reservation->quantity;
             $variant->save();
 
             $reservation->status = $finalStatus;
             $reservation->released_at = now();
             $reservation->save();
-
-            $order = Order::findOrFail($reservation->order_id);
 
             InventoryMovement::create([
                 'warehouse_id' => $order->warehouse_id,
@@ -276,6 +356,6 @@ class InventoryService
             ]);
 
             return $reservation;
-        });
+        }, 3);
     }
 }

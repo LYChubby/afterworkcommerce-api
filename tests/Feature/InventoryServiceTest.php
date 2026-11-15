@@ -243,6 +243,11 @@ test('inventory service confirms an active reservation', function () {
 
     $reservation = $service->reserveForOrderItem($item->id);
 
+    // Simulasikan pembayaran yang sudah diverifikasi.
+    $order->payment_status = 'paid';
+    $order->paid_at = now();
+    $order->save();
+
     $confirmed = $service->confirmReservation($reservation->id);
 
     expect($confirmed->status)->toBe('confirmed')
@@ -356,6 +361,10 @@ test('inventory service releases an active reservation', function () {
     $service = app(\App\Services\InventoryService::class);
 
     $reservation = $service->reserveForOrderItem($item->id);
+
+    // Simulasikan pesanan yang sudah dibatalkan.
+    $order->status = 'cancelled';
+    $order->save();
 
     $released = $service->releaseReservation($reservation->id);
 
