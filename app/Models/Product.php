@@ -21,6 +21,10 @@ class Product extends Model
         'price',
         'discount_price',
         'is_active',
+        'weight_grams',
+        'length_cm',
+        'width_cm',
+        'height_cm',
     ];
 
     protected function casts(): array
@@ -29,6 +33,10 @@ class Product extends Model
             'price' => 'decimal:2',
             'discount_price' => 'decimal:2',
             'is_active' => 'boolean',
+            'weight_grams' => 'integer',
+            'length_cm' => 'integer',
+            'width_cm' => 'integer',
+            'height_cm' => 'integer',
         ];
     }
 
