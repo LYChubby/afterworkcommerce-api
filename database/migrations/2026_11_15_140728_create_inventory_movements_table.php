@@ -50,6 +50,7 @@ return new class extends Migration
 
             $table->timestamps();
 
+            // Index untuk pencarian riwayat
             $table->index(
                 ['product_variant_id', 'created_at'],
                 'inventory_movements_variant_date_idx'

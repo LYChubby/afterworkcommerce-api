@@ -78,4 +78,12 @@ class ProductVariant extends Model
             )
         );
     }
+
+    /**
+     * Varian memiliki banyak riwayat pergerakan stok.
+     */
+    public function inventoryMovements(): HasMany
+    {
+        return $this->hasMany(InventoryMovement::class);
+    }
 }
