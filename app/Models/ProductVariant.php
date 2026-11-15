@@ -86,4 +86,12 @@ class ProductVariant extends Model
     {
         return $this->hasMany(InventoryMovement::class);
     }
+
+    /**
+     * Varian memiliki banyak reservasi stok.
+     */
+    public function inventoryReservations(): HasMany
+    {
+        return $this->hasMany(InventoryReservation::class);
+    }
 }
