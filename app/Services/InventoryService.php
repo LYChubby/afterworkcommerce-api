@@ -44,7 +44,7 @@ class InventoryService
 
             if (
                 !$order->payment_deadline_at ||
-                $order->payment_deadline_at->isPast()
+                $order->payment_deadline_at->lessThanOrEqualTo(now())
             ) {
                 throw new RuntimeException(
                     'Batas waktu pembayaran telah berakhir.'
