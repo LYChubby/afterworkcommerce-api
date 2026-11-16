@@ -46,15 +46,15 @@ class BiteshipOrderService
                 return $existingShipment;
             }
 
+            $courierSnapshot = $lockedOrder->shipping_courier_snapshot ?? [];
+
             return Shipment::create([
                 'order_id' => $lockedOrder->id,
                 'provider' => 'biteship',
-                'courier_code' => $lockedOrder
-                    ->shipping_courier_snapshot['courier_code'],
-                'courier_service_code' => $lockedOrder
-                    ->shipping_courier_snapshot['courier_service_code'] ?? null,
-                'courier_name' => $lockedOrder
-                    ->shipping_courier_snapshot['courier_name'] ?? null,
+                'courier_code' => $courierSnapshot['courier_code'],
+                'courier_service_code' => $courierSnapshot['courier_service_code'] ?? null,
+                'courier_service_name' => $courierSnapshot['courier_service_name'] ?? null,
+                'courier_name' => $courierSnapshot['courier_name'] ?? null,
                 'status' => 'creating',
             ]);
         });

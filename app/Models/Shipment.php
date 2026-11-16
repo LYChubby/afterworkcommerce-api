@@ -18,6 +18,7 @@ class Shipment extends Model
         'waybill_id',
         'courier_code',
         'courier_service_code',
+        'courier_service_name',
         'courier_name',
         'status',
         'tracking_url',
