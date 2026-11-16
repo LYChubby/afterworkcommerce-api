@@ -645,3 +645,46 @@ test('it returns shipment events ordered from newest to oldest', function () {
         ->assertJsonMissingPath('data.events.0.payload')
         ->assertJsonMissingPath('data.events.0.event_hash');
 });
+
+
+test('it does not expose internal shipment provider data in tracking response', function () {
+    $order = $this->shipment->order;
+
+    $this->shipment->update([
+        'provider_response' => [
+            'api_secret' => 'PRIVATE-BITESHIP-SECRET',
+            'internal_reference' => 'PRIVATE-PROVIDER-REFERENCE',
+        ],
+    ]);
+
+    \Illuminate\Support\Facades\DB::table('shipment_events')
+        ->insert([
+            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'shipment_id' => $this->shipment->id,
+            'event_type' => 'order.status',
+            'status' => 'picked',
+            'description' => 'Package picked up',
+            'location' => 'Bandung',
+            'occurred_at' => now(),
+            'event_hash' => hash('sha256', 'private-test-event'),
+            'payload' => json_encode([
+                'secret' => 'PRIVATE-WEBHOOK-PAYLOAD',
+                'internal_reference' => 'PRIVATE-EVENT-REFERENCE',
+            ]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+    $response = $this->actingAs($order->user, 'sanctum')
+        ->getJson("/api/orders/{$order->id}/shipment");
+
+    $response
+        ->assertOk()
+        ->assertJsonMissingPath('data.shipment.provider_response')
+        ->assertJsonMissingPath('data.events.0.payload')
+        ->assertJsonMissingPath('data.events.0.event_hash')
+        ->assertDontSee('PRIVATE-BITESHIP-SECRET')
+        ->assertDontSee('PRIVATE-PROVIDER-REFERENCE')
+        ->assertDontSee('PRIVATE-WEBHOOK-PAYLOAD')
+        ->assertDontSee('PRIVATE-EVENT-REFERENCE');
+});
