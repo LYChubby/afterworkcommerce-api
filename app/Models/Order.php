@@ -58,6 +58,20 @@ class Order extends Model
         });
     }
 
+    public const STATUS_PENDING = 'pending';
+
+    public const STATUS_PROCESSING = 'processing';
+
+    public const STATUS_SHIPPED = 'shipped';
+
+    public const STATUS_DELIVERED = 'delivered';
+
+    public const STATUS_RETURNED = 'returned';
+
+    public const STATUS_CANCELLED = 'cancelled';
+
+    public const STATUS_EXPIRED = 'expired';
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
