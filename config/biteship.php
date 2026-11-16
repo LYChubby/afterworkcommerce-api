@@ -15,5 +15,14 @@ return [
         )
     )),
 
+    'webhook_header' => env(
+        'BITESHIP_WEBHOOK_HEADER',
+        'X-AfterWork-Biteship-Key'
+    ),
+
+    'webhook_secret' => env(
+        'BITESHIP_WEBHOOK_SECRET'
+    ),
+
     'timeout' => 20,
 ];
