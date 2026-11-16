@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Shipment;
 use App\Models\ShipmentEvent;
+use App\Models\Order;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -102,6 +103,10 @@ class BiteshipWebhookService
 
             $shipment->save();
 
+            if ($event === 'order.status' && is_string($status)) {
+                $this->syncOrderStatus($shipment, $status);
+            }
+
             return true;
         });
     }
@@ -114,5 +119,82 @@ class BiteshipWebhookService
             'order.price' => 'Biaya pengiriman diperbarui oleh Biteship.',
             default => null,
         };
+    }
+
+    private function syncOrderStatus(
+        Shipment $shipment,
+        string $shipmentStatus
+    ): void {
+        $normalizedStatus = strtolower($shipmentStatus);
+
+        $targetStatus = match ($normalizedStatus) {
+            'confirmed',
+            'allocated' => Order::STATUS_PROCESSING,
+
+            'pickingup',
+            'picked',
+            'intransit',
+            'droppingoff' => Order::STATUS_SHIPPED,
+
+            'delivered' => Order::STATUS_DELIVERED,
+
+            'returnintransit',
+            'returned' => Order::STATUS_RETURNED,
+
+            default => null,
+        };
+
+        // Status yang tidak dikenali tidak mengubah order.
+        if ($targetStatus === null) {
+            return;
+        }
+
+        $order = Order::query()
+            ->whereKey($shipment->order_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $order) {
+            return;
+        }
+
+        // Jangan mengubah order yang sudah dibatalkan atau kedaluwarsa.
+        if (in_array($order->status, [
+            Order::STATUS_CANCELLED,
+            Order::STATUS_EXPIRED,
+        ], true)) {
+            return;
+        }
+
+        // Status returned tidak boleh diturunkan kembali.
+        if ($order->status === Order::STATUS_RETURNED) {
+            return;
+        }
+
+        // Status returned memiliki prioritas khusus.
+        if ($targetStatus === Order::STATUS_RETURNED) {
+            $order->status = Order::STATUS_RETURNED;
+            $order->save();
+
+            return;
+        }
+
+        $priority = [
+            Order::STATUS_PENDING => 0,
+            Order::STATUS_PROCESSING => 1,
+            Order::STATUS_SHIPPED => 2,
+            Order::STATUS_DELIVERED => 3,
+        ];
+
+        $currentPriority = $priority[$order->status] ?? -1;
+        $targetPriority = $priority[$targetStatus] ?? -1;
+
+        // Abaikan webhook lama yang menyebabkan status mundur.
+        if ($targetPriority <= $currentPriority) {
+            return;
+        }
+
+        $order->status = $targetStatus;
+        $order->save();
     }
 }
