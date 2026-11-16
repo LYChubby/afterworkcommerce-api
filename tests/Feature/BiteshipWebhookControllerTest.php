@@ -520,3 +520,74 @@ test('it preserves existing tracking information when webhook sends empty values
     expect($this->shipment->fresh()->waybill_id)
         ->toBe('WAYBILL-OLD-123');
 });
+
+test('it allows customers to view their own shipment tracking', function () {
+    $order = $this->shipment->order;
+
+    $response = $this->actingAs($order->user, 'sanctum')
+        ->getJson("/api/orders/{$order->id}/shipment");
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('message', 'Informasi pelacakan berhasil diambil.')
+        ->assertJsonPath('data.order.uuid', $order->uuid)
+        ->assertJsonPath('data.shipment.provider', 'biteship')
+        ->assertJsonPath('data.shipment.status', $this->shipment->status)
+        ->assertJsonStructure([
+            'data' => [
+                'order',
+                'shipment' => [
+                    'provider',
+                    'courier_name',
+                    'tracking_id',
+                    'waybill_id',
+                    'tracking_url',
+                    'status',
+                ],
+                'events',
+            ],
+        ]);
+});
+
+test('it prevents customers from viewing another customers shipment tracking', function () {
+    $order = $this->shipment->order;
+
+    $owner = $order->user;
+    $anotherUser = \App\Models\User::factory()->create();
+
+    $order->update([
+        'user_id' => $anotherUser->id,
+    ]);
+
+    $response = $this->actingAs($owner, 'sanctum')
+        ->getJson("/api/orders/{$order->id}/shipment");
+
+    $response->assertNotFound();
+});
+
+test('it returns null shipment data when order has no shipment', function () {
+    $order = $this->shipment->order;
+
+    $this->shipment->delete();
+
+    $response = $this->actingAs($order->user, 'sanctum')
+        ->getJson("/api/orders/{$order->id}/shipment");
+
+    $response
+        ->assertOk()
+        ->assertJsonPath(
+            'message',
+            'Informasi pengiriman belum tersedia.'
+        )
+        ->assertJsonPath('data', null);
+});
+
+test('it rejects unauthenticated customers from viewing shipment tracking', function () {
+    $order = $this->shipment->order;
+
+    $response = $this->getJson(
+        "/api/orders/{$order->id}/shipment"
+    );
+
+    $response->assertUnauthorized();
+});
