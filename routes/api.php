@@ -16,7 +16,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get(
         '/orders/{order}/shipment',
         [OrderShipmentController::class, 'show']
-    )->name('orders.shipment.show');
+    )
+        ->middleware('throttle:60,1')
+        ->name('orders.shipment.show');
 });
 
 Route::post(
