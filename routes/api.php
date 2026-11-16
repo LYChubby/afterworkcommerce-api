@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\MidtransNotificationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ShippingRateController;
+use App\Http\Controllers\Api\BiteshipWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -26,3 +27,7 @@ Route::middleware([
         ShippingRateController::class
     )->name('shipping.rates');
 });
+
+Route::post('/webhooks/biteship', BiteshipWebhookController::class)
+    ->middleware('throttle:60,1')
+    ->name('webhooks.biteship');
