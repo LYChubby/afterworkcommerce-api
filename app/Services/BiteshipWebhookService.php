@@ -127,22 +127,27 @@ class BiteshipWebhookService
     ): void {
         $normalizedStatus = strtolower($shipmentStatus);
 
-        $targetStatus = match ($normalizedStatus) {
-            'confirmed',
-            'allocated' => Order::STATUS_PROCESSING,
 
+        $targetStatus = match ($normalizedStatus) {
+            'confirmed', 'scheduled', 'allocated' => Order::STATUS_PROCESSING,
+
+            'picking_up',
             'pickingup',
             'picked',
+            'in_transit',
             'intransit',
+            'dropping_off',
             'droppingoff' => Order::STATUS_SHIPPED,
 
             'delivered' => Order::STATUS_DELIVERED,
 
+            'return_in_transit',
             'returnintransit',
             'returned' => Order::STATUS_RETURNED,
 
             default => null,
         };
+
 
         // Status yang tidak dikenali tidak mengubah order.
         if ($targetStatus === null) {

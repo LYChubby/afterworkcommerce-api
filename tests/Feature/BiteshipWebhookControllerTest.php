@@ -237,3 +237,114 @@ test('it rejects webhook when secret is not configured', function () {
 
     $this->assertDatabaseCount('shipment_events', 0);
 });
+
+it('updates order status to delivered when shipment is delivered', function () {
+    $shipment = $this->shipment->fresh();
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => $shipment->provider_order_id,
+        'status' => 'delivered',
+        'location' => 'Bandung',
+    ]);
+
+    $response->assertOk();
+
+    expect($shipment->fresh()->status)->toBe('delivered');
+
+    expect($shipment->order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_DELIVERED);
+});
+
+it('updates order status to returned when shipment is returned', function () {
+    $shipment = $this->shipment->fresh();
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => $shipment->provider_order_id,
+        'status' => 'returned',
+    ]);
+
+    $response->assertOk();
+
+    expect($shipment->fresh()->status)->toBe('returned');
+
+    expect($shipment->order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_RETURNED);
+});
+
+it('does not downgrade delivered order status from late webhook', function () {
+    $shipment = $this->shipment->fresh();
+
+    $shipment->update([
+        'status' => 'delivered',
+    ]);
+
+    $shipment->order->update([
+        'status' => \App\Models\Order::STATUS_DELIVERED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => $shipment->provider_order_id,
+        'status' => 'inTransit',
+    ]);
+
+    $response->assertOk();
+
+    expect($shipment->fresh()->status)->toBe('inTransit');
+
+    expect($shipment->order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_DELIVERED);
+});
+
+it('does not change cancelled order status from shipment webhook', function () {
+    $shipment = $this->shipment->fresh();
+
+    $shipment->order->update([
+        'status' => \App\Models\Order::STATUS_CANCELLED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => $shipment->provider_order_id,
+        'status' => 'delivered',
+    ]);
+
+    $response->assertOk();
+
+    expect($shipment->order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_CANCELLED);
+});
+
+
+it('maps Biteship courier statuses to shipped order status', function (string $shipmentStatus) {
+    $shipment = $this->shipment->fresh();
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => $shipment->provider_order_id,
+        'status' => $shipmentStatus,
+    ]);
+
+    $response->assertOk();
+
+    expect($shipment->fresh()->status)->toBe($shipmentStatus);
+
+    expect($shipment->order->fresh()->status)
+        ->toBe(Order::STATUS_SHIPPED);
+})->with([
+    'picking_up',
+    'picked',
+    'dropping_off',
+]);
