@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\MidtransNotificationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ShippingRateController;
 use App\Http\Controllers\Api\BiteshipWebhookController;
+use App\Http\Controllers\Api\OrderShipmentController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -11,6 +12,11 @@ Route::middleware('auth:sanctum')->group(function () {
         '/orders/{order}/payment',
         [PaymentController::class, 'store']
     )->name('orders.payment.store');
+
+    Route::get(
+        '/orders/{order}/shipment',
+        [OrderShipmentController::class, 'show']
+    )->name('orders.shipment.show');
 });
 
 Route::post(
