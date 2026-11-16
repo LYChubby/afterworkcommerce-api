@@ -11,6 +11,8 @@ use App\Models\Warehouse;
 use App\Services\MidtransNotificationService;
 use App\Services\OrderCancellationService;
 use App\Services\OrderService;
+use App\Models\ShippingQuote;
+use Illuminate\Support\Str;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use InvalidArgumentException;
 use RuntimeException;
@@ -88,16 +90,48 @@ beforeEach(function () {
 
 function createMidtransWebhookTestPayment($test): array
 {
-    $order = app(OrderService::class)->createPendingOrder(
-        user: $test->user,
-        items: [
+    $warehouse = Warehouse::query()
+        ->where('is_active', true)
+        ->orderBy('id')
+        ->firstOrFail();
+
+    $items = [
+        [
+            'product_variant_id' => $test->variant->id,
+            'quantity' => 2,
+        ],
+    ];
+
+    $quote = ShippingQuote::create([
+        'quote_group_uuid' => (string) Str::uuid(),
+        'user_id' => $test->user->id,
+        'warehouse_id' => $warehouse->id,
+        'origin_snapshot' => [
+            'city' => $warehouse->city,
+            'province' => $warehouse->province,
+            'postal_code' => $warehouse->postal_code,
+        ],
+        'destination_snapshot' => [
+            'postal_code' => $test->address['postal_code'],
+        ],
+        'items_snapshot' => [
             [
-                'product_variant_id' => $test->variant->id,
+                'variant_id' => $test->variant->id,
                 'quantity' => 2,
             ],
         ],
+        'courier_code' => 'test',
+        'courier_name' => 'Test Courier',
+        'shipping_fee' => 0,
+        'currency' => 'IDR',
+        'expires_at' => now()->addMinutes(15),
+    ]);
+
+    $order = app(OrderService::class)->createPendingOrder(
+        user: $test->user,
+        items: $items,
         shippingAddressSnapshot: $test->address,
-        shippingCost: 0,
+        shippingQuoteUuid: $quote->uuid,
     );
 
     $payment = $order->payments()->create([

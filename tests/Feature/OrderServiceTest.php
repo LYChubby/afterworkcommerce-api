@@ -9,11 +9,13 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\ShippingQuote;
 use App\Models\Size;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\OrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
@@ -85,21 +87,34 @@ beforeEach(function () {
     ];
 });
 
+/*
+|--------------------------------------------------------------------------
+| Test 1: Checkout berhasil
+|--------------------------------------------------------------------------
+*/
+
 test('order service creates an order and reserves stock', function () {
+    $items = [
+        [
+            'product_variant_id' => $this->variant->id,
+            'quantity' => 2,
+            'price' => 1,
+        ],
+    ];
+
+    $quote = createOrderShippingQuoteForTest(
+        $this->user,
+        $this->warehouse,
+        $items,
+        $this->shippingAddress['postal_code'],
+        15000
+    );
+
     $order = app(OrderService::class)->createPendingOrder(
         user: $this->user,
-        items: [
-            [
-                'product_variant_id' => $this->variant->id,
-                'quantity' => 2,
-
-                // Nilai ini sengaja dimanipulasi.
-                // Service tidak boleh menggunakannya.
-                'price' => 1,
-            ],
-        ],
+        items: $items,
         shippingAddressSnapshot: $this->shippingAddress,
-        shippingCost: 15000,
+        shippingQuoteUuid: $quote->uuid,
     );
 
     expect($order->status)->toBe('pending')
@@ -126,6 +141,16 @@ test('order service creates an order and reserves stock', function () {
         ->and((float) $orderItem->line_total)
         ->toBe(598000.0);
 
+    expect($order->shipping_courier_snapshot['courier_code'])
+        ->toBe('jne')
+        ->and($order->shipping_courier_snapshot['courier_service_name'])
+        ->toBe('Regular');
+
+    $this->assertDatabaseHas('shipping_quotes', [
+        'id' => $quote->id,
+        'order_id' => $order->id,
+    ]);
+
     $this->variant->refresh();
 
     expect($this->variant->stock_on_hand)->toBe(100)
@@ -146,22 +171,38 @@ test('order service creates an order and reserves stock', function () {
     ]);
 });
 
+/*
+|--------------------------------------------------------------------------
+| Test 2: Stok tidak mencukupi
+|--------------------------------------------------------------------------
+*/
+
 test('order service rolls back everything when stock is insufficient', function () {
     $this->variant->update([
         'stock_on_hand' => 1,
         'stock_reserved' => 0,
     ]);
 
+    $items = [
+        [
+            'product_variant_id' => $this->variant->id,
+            'quantity' => 2,
+        ],
+    ];
+
+    $quote = createOrderShippingQuoteForTest(
+        $this->user,
+        $this->warehouse,
+        $items,
+        $this->shippingAddress['postal_code'],
+        15000
+    );
+
     expect(fn() => app(OrderService::class)->createPendingOrder(
         user: $this->user,
-        items: [
-            [
-                'product_variant_id' => $this->variant->id,
-                'quantity' => 2,
-            ],
-        ],
+        items: $items,
         shippingAddressSnapshot: $this->shippingAddress,
-        shippingCost: 15000,
+        shippingQuoteUuid: $quote->uuid,
     ))->toThrow(RuntimeException::class);
 
     expect(Order::count())->toBe(0)
@@ -170,26 +211,45 @@ test('order service rolls back everything when stock is insufficient', function 
         ->and(InventoryMovement::count())->toBe(0);
 
     $this->variant->refresh();
+    $quote->refresh();
 
     expect($this->variant->stock_on_hand)->toBe(1)
-        ->and($this->variant->stock_reserved)->toBe(0);
+        ->and($this->variant->stock_reserved)->toBe(0)
+        ->and($quote->order_id)->toBeNull()
+        ->and($quote->used_at)->toBeNull();
 });
 
+/*
+|--------------------------------------------------------------------------
+| Test 3: Variasi duplikat digabung
+|--------------------------------------------------------------------------
+*/
+
 test('order service combines duplicate variants into one order item', function () {
+    $items = [
+        [
+            'product_variant_id' => $this->variant->id,
+            'quantity' => 1,
+        ],
+        [
+            'product_variant_id' => $this->variant->id,
+            'quantity' => 2,
+        ],
+    ];
+
+    $quote = createOrderShippingQuoteForTest(
+        $this->user,
+        $this->warehouse,
+        $items,
+        $this->shippingAddress['postal_code'],
+        0
+    );
+
     $order = app(OrderService::class)->createPendingOrder(
         user: $this->user,
-        items: [
-            [
-                'product_variant_id' => $this->variant->id,
-                'quantity' => 1,
-            ],
-            [
-                'product_variant_id' => $this->variant->id,
-                'quantity' => 2,
-            ],
-        ],
+        items: $items,
         shippingAddressSnapshot: $this->shippingAddress,
-        shippingCost: 0,
+        shippingQuoteUuid: $quote->uuid,
     );
 
     expect($order->items)->toHaveCount(1)
@@ -202,3 +262,180 @@ test('order service combines duplicate variants into one order item', function (
     expect($this->variant->stock_reserved)->toBe(3)
         ->and($this->variant->available_stock)->toBe(97);
 });
+
+/*
+|--------------------------------------------------------------------------
+| Test 4: Quote milik pengguna lain ditolak
+|--------------------------------------------------------------------------
+*/
+
+test('order service rejects another users shipping quote', function () {
+    $otherUser = User::factory()->create();
+
+    $items = [
+        [
+            'product_variant_id' => $this->variant->id,
+            'quantity' => 1,
+        ],
+    ];
+
+    $quote = createOrderShippingQuoteForTest(
+        $otherUser,
+        $this->warehouse,
+        $items,
+        $this->shippingAddress['postal_code']
+    );
+
+    expect(fn() => app(OrderService::class)->createPendingOrder(
+        user: $this->user,
+        items: $items,
+        shippingAddressSnapshot: $this->shippingAddress,
+        shippingQuoteUuid: $quote->uuid,
+    ))->toThrow(
+        Illuminate\Validation\ValidationException::class
+    );
+
+    expect(Order::count())->toBe(0);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Test 5: Quote kedaluwarsa ditolak
+|--------------------------------------------------------------------------
+*/
+
+test('order service rejects expired shipping quote', function () {
+    $items = [
+        [
+            'product_variant_id' => $this->variant->id,
+            'quantity' => 1,
+        ],
+    ];
+
+    $quote = createOrderShippingQuoteForTest(
+        $this->user,
+        $this->warehouse,
+        $items,
+        $this->shippingAddress['postal_code']
+    );
+
+    $quote->update([
+        'expires_at' => now()->subMinute(),
+    ]);
+
+    expect(fn() => app(OrderService::class)->createPendingOrder(
+        user: $this->user,
+        items: $items,
+        shippingAddressSnapshot: $this->shippingAddress,
+        shippingQuoteUuid: $quote->uuid,
+    ))->toThrow(
+        Illuminate\Validation\ValidationException::class
+    );
+
+    expect(Order::count())->toBe(0);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Test 6: Quote tidak dapat digunakan dua kali
+|--------------------------------------------------------------------------
+*/
+
+test('order service prevents reusing a shipping quote', function () {
+    $items = [
+        [
+            'product_variant_id' => $this->variant->id,
+            'quantity' => 1,
+        ],
+    ];
+
+    $quote = createOrderShippingQuoteForTest(
+        $this->user,
+        $this->warehouse,
+        $items,
+        $this->shippingAddress['postal_code']
+    );
+
+    app(OrderService::class)->createPendingOrder(
+        user: $this->user,
+        items: $items,
+        shippingAddressSnapshot: $this->shippingAddress,
+        shippingQuoteUuid: $quote->uuid,
+    );
+
+    expect(fn() => app(OrderService::class)->createPendingOrder(
+        user: $this->user,
+        items: $items,
+        shippingAddressSnapshot: $this->shippingAddress,
+        shippingQuoteUuid: $quote->uuid,
+    ))->toThrow(
+        Illuminate\Validation\ValidationException::class
+    );
+
+    expect(Order::count())->toBe(1);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Helper: Membuat Shipping Quote untuk test
+|--------------------------------------------------------------------------
+*/
+
+function createOrderShippingQuoteForTest(
+    User $user,
+    Warehouse $warehouse,
+    array $items,
+    string $postalCode = '40115',
+    int $fee = 15000
+): ShippingQuote {
+    $normalized = [];
+
+    foreach ($items as $item) {
+        $id = (int) (
+            $item['product_variant_id']
+            ?? $item['variant_id']
+            ?? 0
+        );
+
+        $normalized[$id] = ($normalized[$id] ?? 0)
+            + (int) $item['quantity'];
+    }
+
+    ksort($normalized);
+
+    $normalizedItems = collect($normalized)
+        ->map(fn($quantity, $id) => [
+            'variant_id' => (int) $id,
+            'quantity' => $quantity,
+        ])
+        ->values()
+        ->all();
+
+    return ShippingQuote::create([
+        'quote_group_uuid' => (string) Str::uuid(),
+        'user_id' => $user->id,
+        'warehouse_id' => $warehouse->id,
+
+        'origin_snapshot' => [
+            'postal_code' => $warehouse->postal_code,
+        ],
+
+        'destination_snapshot' => [
+            'postal_code' => $postalCode,
+        ],
+
+        'items_snapshot' => $normalizedItems,
+
+        'courier_code' => 'jne',
+        'courier_name' => 'JNE',
+        'courier_service_code' => 'reg',
+        'courier_service_name' => 'Regular',
+        'description' => 'Test shipping',
+        'duration' => '2 - 3 days',
+        'service_type' => 'standard',
+
+        'shipping_fee' => $fee,
+        'currency' => 'IDR',
+        'expires_at' => now()->addMinutes(15),
+    ]);
+}

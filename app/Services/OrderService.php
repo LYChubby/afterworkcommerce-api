@@ -8,6 +8,8 @@ use App\Models\OrderItem;
 use App\Models\ProductVariant;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Models\ShippingQuote;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -27,27 +29,24 @@ class OrderService
         User $user,
         array $items,
         array $shippingAddressSnapshot,
-        int $shippingCost = 0,
+        string $shippingQuoteUuid,
         ?int $shippingAddressId = null,
         ?string $customerNote = null
     ): Order {
         if (empty($items)) {
-            throw new RuntimeException(
-                'Pesanan harus memiliki minimal satu item.'
-            );
+            throw ValidationException::withMessages([
+                'items' => 'Keranjang tidak boleh kosong.',
+            ]);
         }
 
-        if ($shippingCost < 0) {
-            throw new RuntimeException(
-                'Biaya pengiriman tidak valid.'
-            );
-        }
+        $normalizedCartItems = $this->normalizeCartForShippingQuote($items);
 
         return DB::transaction(function () use (
             $user,
             $items,
             $shippingAddressSnapshot,
-            $shippingCost,
+            $shippingQuoteUuid,
+            $normalizedCartItems,
             $shippingAddressId,
             $customerNote
         ) {
@@ -107,6 +106,68 @@ class OrderService
                 ->where('is_active', true)
                 ->orderBy('id')
                 ->firstOrFail();
+
+            $shippingQuote = ShippingQuote::query()
+                ->where('uuid', $shippingQuoteUuid)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $shippingQuote) {
+                throw ValidationException::withMessages([
+                    'shipping_quote_uuid' => 'Pilihan pengiriman tidak ditemukan.',
+                ]);
+            }
+
+            if ((int) $shippingQuote->user_id !== (int) $user->id) {
+                throw ValidationException::withMessages([
+                    'shipping_quote_uuid' => 'Pilihan pengiriman bukan milik akun Anda.',
+                ]);
+            }
+
+            if (! $shippingQuote->isUsable()) {
+                throw ValidationException::withMessages([
+                    'shipping_quote_uuid' => 'Pilihan pengiriman sudah kedaluwarsa atau digunakan.',
+                ]);
+            }
+
+            if ((int) $shippingQuote->warehouse_id !== (int) $warehouse->id) {
+                throw ValidationException::withMessages([
+                    'shipping_quote_uuid' => 'Gudang pengiriman tidak sesuai.',
+                ]);
+            }
+
+            $quotePostalCode = trim(
+                (string) ($shippingQuote->destination_snapshot['postal_code'] ?? '')
+            );
+
+            $orderPostalCode = trim(
+                (string) ($shippingAddressSnapshot['postal_code'] ?? '')
+            );
+
+            if (
+                $quotePostalCode === '' ||
+                $orderPostalCode === '' ||
+                $quotePostalCode !== $orderPostalCode
+            ) {
+                throw ValidationException::withMessages([
+                    'shipping_quote_uuid' => 'Kode pos alamat tidak sesuai dengan pilihan pengiriman.',
+                ]);
+            }
+
+            $quoteItems = collect($shippingQuote->items_snapshot)
+                ->map(fn($item) => [
+                    'variant_id' => (int) ($item['variant_id'] ?? 0),
+                    'quantity' => (int) ($item['quantity'] ?? 0),
+                ])
+                ->sortBy('variant_id')
+                ->values()
+                ->all();
+
+            if ($quoteItems !== $normalizedCartItems) {
+                throw ValidationException::withMessages([
+                    'shipping_quote_uuid' => 'Isi keranjang berubah. Silakan hitung ulang ongkos kirim.',
+                ]);
+            }
 
             /*
              * 3. Normalisasi item.
@@ -212,9 +273,7 @@ class OrderService
             /*
              * 5. Hitung total dan batas pembayaran.
              */
-            $grandTotal = $subtotal
-                - $itemDiscountTotal
-                + $shippingCost;
+            $grandTotal = $subtotal - $itemDiscountTotal + $shippingQuote->shipping_fee;
 
             $paymentDeadline = now()->addMinutes(30);
 
@@ -231,11 +290,28 @@ class OrderService
                 'payment_status' => 'pending',
                 'subtotal' => $subtotal,
                 'item_discount_total' => $itemDiscountTotal,
-                'shipping_cost' => $shippingCost,
+                'shipping_cost' => $shippingQuote->shipping_fee,
+
+                'shipping_courier_snapshot' => [
+                    'quote_uuid' => $shippingQuote->uuid,
+                    'courier_code' => $shippingQuote->courier_code,
+                    'courier_name' => $shippingQuote->courier_name,
+                    'courier_service_code' => $shippingQuote->courier_service_code,
+                    'courier_service_name' => $shippingQuote->courier_service_name,
+                    'description' => $shippingQuote->description,
+                    'duration' => $shippingQuote->duration,
+                    'shipping_fee' => $shippingQuote->shipping_fee,
+                    'currency' => $shippingQuote->currency,
+                ],
                 'grand_total' => $grandTotal,
                 'currency' => 'IDR',
                 'payment_deadline_at' => $paymentDeadline,
                 'customer_note' => $customerNote,
+            ]);
+
+            $shippingQuote->update([
+                'order_id' => $order->id,
+                'used_at' => now(),
             ]);
 
             /*
@@ -292,5 +368,38 @@ class OrderService
         );
 
         return $orderNumber;
+    }
+
+    private function normalizeCartForShippingQuote(array $items): array
+    {
+        $normalized = [];
+
+        foreach ($items as $item) {
+            $variantId = (int) (
+                $item['variant_id']
+                ?? $item['product_variant_id']
+                ?? 0
+            );
+
+            $quantity = (int) ($item['quantity'] ?? 0);
+
+            if ($variantId <= 0 || $quantity <= 0) {
+                throw ValidationException::withMessages([
+                    'items' => 'Variasi produk dan jumlah harus valid.',
+                ]);
+            }
+
+            $normalized[$variantId] = ($normalized[$variantId] ?? 0) + $quantity;
+        }
+
+        ksort($normalized);
+
+        return collect($normalized)
+            ->map(fn($quantity, $variantId) => [
+                'variant_id' => (int) $variantId,
+                'quantity' => (int) $quantity,
+            ])
+            ->values()
+            ->all();
     }
 }

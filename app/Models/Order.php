@@ -30,6 +30,7 @@ class Order extends Model
         'paid_at',
         'cancelled_at',
         'customer_note',
+        'shipping_courier_snapshot',
     ];
 
     protected function casts(): array
@@ -43,6 +44,7 @@ class Order extends Model
             'payment_deadline_at' => 'datetime',
             'paid_at' => 'datetime',
             'cancelled_at' => 'datetime',
+            'shipping_courier_snapshot' => 'array',
         ];
     }
 
