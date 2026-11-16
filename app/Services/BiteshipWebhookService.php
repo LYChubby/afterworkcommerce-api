@@ -62,52 +62,71 @@ class BiteshipWebhookService
                 return false;
             }
 
-            $status = $payload['status'] ?? null;
+            $status = isset($payload['status'])
+                ? trim($payload['status'])
+                : null;
 
+            $location = isset($payload['location'])
+                && trim($payload['location']) !== ''
+                ? trim($payload['location'])
+                : null;
+
+            // Simpan event webhook.
             ShipmentEvent::create([
                 'uuid' => (string) Str::uuid(),
                 'shipment_id' => $shipment->id,
                 'event_type' => $event,
-                'status' => is_string($status) ? $status : null,
+                'status' => $status,
                 'description' => $this->getDescription($event, $payload),
-                'location' => $payload['location'] ?? null,
+                'location' => $location,
                 'occurred_at' => now(),
                 'event_hash' => $eventHash,
                 'payload' => $payload,
             ]);
 
-            // Simpan informasi terbaru dari Biteship.
-            if (! empty($payload['status'])) {
-                $shipment->status = $payload['status'];
+            // Perbarui tracking ID jika nilainya tidak kosong.
+            if (
+                isset($payload['courier_tracking_id'])
+                && trim($payload['courier_tracking_id']) !== ''
+            ) {
+                $shipment->tracking_id = trim($payload['courier_tracking_id']);
             }
 
-            if (! empty($payload['courier_tracking_id'])) {
-                $shipment->tracking_id = $payload['courier_tracking_id'];
+            // Perbarui nomor resi jika nilainya tidak kosong.
+            if (
+                isset($payload['courier_waybill_id'])
+                && trim($payload['courier_waybill_id']) !== ''
+            ) {
+                $shipment->waybill_id = trim($payload['courier_waybill_id']);
             }
 
-            if (! empty($payload['courier_waybill_id'])) {
-                $shipment->waybill_id = $payload['courier_waybill_id'];
+            // Perbarui URL tracking jika nilainya tidak kosong.
+            if (
+                isset($payload['courier_link'])
+                && trim($payload['courier_link']) !== ''
+            ) {
+                $shipment->tracking_url = trim($payload['courier_link']);
             }
 
-            if (! empty($payload['courier_link'])) {
-                $shipment->tracking_url = $payload['courier_link'];
-            }
+            // Simpan status shipment hanya untuk event status.
+            if ($event === 'order.status' && $status !== null) {
+                $shipment->status = $status;
 
-            if ($event === 'order.price') {
-                $price = $payload['price'] ?? $payload['order_price'] ?? null;
-
-                if (is_numeric($price) && $price >= 0) {
-                    $shipment->actual_shipping_fee = (int) $price;
+                if (strtolower($status) === 'delivered') {
+                    $shipment->delivered_at ??= now();
                 }
             }
 
-            if ($event === 'order.status' && $status === 'delivered') {
-                $shipment->delivered_at ??= now();
+            // Perbarui biaya pengiriman.
+            if ($event === 'order.price') {
+                $price = $payload['price'] ?? $payload['order_price'];
+
+                $shipment->actual_shipping_fee = (int) $price;
             }
 
             $shipment->save();
 
-            if ($event === 'order.status' && is_string($status)) {
+            if ($event === 'order.status' && $status !== null) {
                 $this->syncOrderStatus($shipment, $status);
             }
 
@@ -122,6 +141,29 @@ class BiteshipWebhookService
             'order.waybill_id' => 'Nomor resi pengiriman diperbarui oleh Biteship.',
             'order.price' => 'Biaya pengiriman diperbarui oleh Biteship.',
             default => null,
+        };
+    }
+
+    private function getShipmentStatusPriority(string $status): int
+    {
+        return match (strtolower(trim($status))) {
+            'confirmed', 'scheduled', 'allocated' => 1,
+
+            'picking_up', 'pickingup' => 2,
+
+            'picked' => 3,
+
+            'in_transit', 'intransit' => 4,
+
+            'dropping_off', 'droppingoff' => 5,
+
+            'delivered' => 6,
+
+            'return_in_transit', 'returnintransit' => 7,
+
+            'returned' => 8,
+
+            default => 0,
         };
     }
 

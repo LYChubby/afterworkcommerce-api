@@ -177,6 +177,11 @@ test('it updates actual shipping fee from price webhook', function () {
         'price' => 18000,
     ]);
 
+    $orderBefore = $this->shipment->order->fresh();
+
+    $shippingCostBefore = $orderBefore->shipping_cost;
+    $grandTotalBefore = $orderBefore->grand_total;
+
     $response->assertOk()
         ->assertJson([
             'processed' => true,
@@ -186,6 +191,11 @@ test('it updates actual shipping fee from price webhook', function () {
         'id' => $this->shipment->id,
         'actual_shipping_fee' => 18000,
     ]);
+
+    $orderAfter = $this->shipment->order->fresh();
+
+    expect($orderAfter->shipping_cost)->toBe($shippingCostBefore);
+    expect($orderAfter->grand_total)->toBe($grandTotalBefore);
 });
 
 test('it rejects invalid webhook event', function () {
@@ -454,4 +464,59 @@ it('rejects webhook when shipping price is negative', function () {
     $response->assertUnprocessable();
 
     $this->assertDatabaseCount('shipment_events', 0);
+});
+
+test('it does not downgrade order status when an older webhook arrives', function () {
+    $shipment = $this->shipment->fresh();
+
+    $shipment->update([
+        'status' => 'picked',
+    ]);
+
+    $shipment->order->update([
+        'status' => \App\Models\Order::STATUS_SHIPPED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => $shipment->provider_order_id,
+        'status' => 'confirmed',
+    ]);
+
+    $response->assertOk();
+
+    // Shipment mengikuti status terbaru dari webhook.
+    expect($shipment->fresh()->status)
+        ->toBe('confirmed');
+
+    // Order tidak boleh mundur dari shipped ke processing.
+    expect($shipment->order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_SHIPPED);
+});
+
+test('it preserves existing tracking information when webhook sends empty values', function () {
+    $this->shipment->update([
+        'tracking_id' => 'TRACK-OLD-123',
+        'waybill_id' => 'WAYBILL-OLD-123',
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => $this->shipment->provider_order_id,
+        'status' => 'picked',
+        'courier_tracking_id' => '',
+        'courier_waybill_id' => '   ',
+    ]);
+
+    $response->assertOk();
+
+    expect($this->shipment->fresh()->tracking_id)
+        ->toBe('TRACK-OLD-123');
+
+    expect($this->shipment->fresh()->waybill_id)
+        ->toBe('WAYBILL-OLD-123');
 });
