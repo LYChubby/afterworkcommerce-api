@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\MidtransService;
+use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -20,9 +21,10 @@ class PaymentController extends Controller
         $user = $request->user();
 
         if (!$user instanceof User) {
-            return response()->json([
-                'message' => 'Unauthenticated.',
-            ], 401);
+            return ApiResponse::error(
+                message: 'Unauthenticated.',
+                status: 401,
+            );
         }
 
         try {
@@ -31,10 +33,8 @@ class PaymentController extends Controller
                 $order->id
             );
 
-            return response()->json([
-                'message' => 'Snap token berhasil dibuat.',
-
-                'data' => [
+            return ApiResponse::success(
+                data: [
                     'payment_uuid' => $payment->uuid,
                     'provider_order_id' => $payment->provider_order_id,
                     'gross_amount' => $payment->gross_amount,
@@ -42,11 +42,13 @@ class PaymentController extends Controller
                     'snap_token' => $payment->snap_token,
                     'redirect_url' => $payment->redirect_url,
                 ],
-            ]);
+                message: 'Snap token berhasil dibuat.',
+            );
         } catch (RuntimeException $exception) {
-            return response()->json([
-                'message' => $exception->getMessage(),
-            ], 422);
+            return ApiResponse::error(
+                message: $exception->getMessage(),
+                status: 422,
+            );
         }
     }
 }
