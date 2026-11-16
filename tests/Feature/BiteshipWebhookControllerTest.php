@@ -348,3 +348,110 @@ it('maps Biteship courier statuses to shipped order status', function (string $s
     'picked',
     'dropping_off',
 ]);
+
+
+it('detects duplicate webhook even when payload key order is different', function () {
+    $headers = [
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ];
+
+    $firstResponse = $this->withHeaders($headers)
+        ->postJson('/api/webhooks/biteship', [
+            'event' => 'order.status',
+            'order_id' => 'bite-order-test-001',
+            'status' => 'delivered',
+            'location' => 'Bandung',
+        ]);
+
+    $firstResponse->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $secondResponse = $this->withHeaders($headers)
+        ->postJson('/api/webhooks/biteship', [
+            'location' => 'Bandung',
+            'status' => 'delivered',
+            'order_id' => 'bite-order-test-001',
+            'event' => 'order.status',
+        ]);
+
+    $secondResponse->assertOk()
+        ->assertJson([
+            'processed' => false,
+        ]);
+
+    $this->assertDatabaseCount('shipment_events', 1);
+});
+
+
+it('rejects webhook when status is not a string', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => ['delivered'],
+    ]);
+
+    $response->assertUnprocessable();
+
+    $this->assertDatabaseCount('shipment_events', 0);
+});
+
+it('rejects webhook when location is not a string', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'delivered',
+        'location' => ['Bandung'],
+    ]);
+
+    $response->assertUnprocessable();
+
+    $this->assertDatabaseCount('shipment_events', 0);
+});
+
+it('rejects webhook when courier tracking ID is not a string', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.waybill_id',
+        'order_id' => 'bite-order-test-001',
+        'courier_tracking_id' => ['TRACK-123'],
+    ]);
+
+    $response->assertUnprocessable();
+
+    $this->assertDatabaseCount('shipment_events', 0);
+});
+
+it('rejects webhook when courier link is not a valid URL', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.waybill_id',
+        'order_id' => 'bite-order-test-001',
+        'courier_link' => 'not-a-valid-url',
+    ]);
+
+    $response->assertUnprocessable();
+
+    $this->assertDatabaseCount('shipment_events', 0);
+});
+
+it('rejects webhook when shipping price is negative', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.price',
+        'order_id' => 'bite-order-test-001',
+        'price' => -1000,
+    ]);
+
+    $response->assertUnprocessable();
+
+    $this->assertDatabaseCount('shipment_events', 0);
+});

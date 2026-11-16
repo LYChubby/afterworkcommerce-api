@@ -28,6 +28,8 @@ class BiteshipWebhookService
             throw new InvalidArgumentException('Order ID Biteship tidak tersedia.');
         }
 
+        $this->validatePayload($event, $payload);
+
         return DB::transaction(function () use (
             $payload,
             $event,
@@ -45,11 +47,13 @@ class BiteshipWebhookService
                 );
             }
 
+            $normalizedPayload = $this->normalizePayloadForHash($payload);
+
             $eventHash = hash(
                 'sha256',
                 json_encode(
-                    $payload,
-                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                    $normalizedPayload,
+                    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR
                 )
             );
 
@@ -201,5 +205,102 @@ class BiteshipWebhookService
 
         $order->status = $targetStatus;
         $order->save();
+    }
+
+
+    private function normalizePayloadForHash(array $payload): array
+    {
+        ksort($payload);
+
+        foreach ($payload as $key => $value) {
+            if (is_array($value)) {
+                $payload[$key] = $this->normalizePayloadForHash($value);
+            }
+        }
+
+        return $payload;
+    }
+
+
+    private function validatePayload(string $event, array $payload): void
+    {
+        // Field yang harus berupa string jika dikirim.
+        $stringFields = [
+            'status',
+            'location',
+            'courier_tracking_id',
+            'courier_waybill_id',
+            'courier_link',
+        ];
+
+        foreach ($stringFields as $field) {
+            if (
+                array_key_exists($field, $payload)
+                && $payload[$field] !== null
+                && ! is_string($payload[$field])
+            ) {
+                throw new InvalidArgumentException(
+                    "Field {$field} harus berupa string."
+                );
+            }
+        }
+
+        // Status wajib berupa string untuk event order.status.
+        if (
+            $event === 'order.status'
+            && (
+                ! isset($payload['status'])
+                || trim($payload['status']) === ''
+            )
+        ) {
+            throw new InvalidArgumentException(
+                'Status pengiriman tidak tersedia.'
+            );
+        }
+
+        // Validasi URL tracking jika dikirim.
+        if (
+            isset($payload['courier_link'])
+            && (
+                filter_var($payload['courier_link'], FILTER_VALIDATE_URL) === false
+                || ! in_array(
+                    strtolower((string) parse_url($payload['courier_link'], PHP_URL_SCHEME)),
+                    ['http', 'https'],
+                    true
+                )
+            )
+        ) {
+            throw new InvalidArgumentException(
+                'Courier tracking link harus berupa URL HTTP atau HTTPS yang valid.'
+            );
+        }
+
+        // Validasi harga pengiriman.
+        foreach (['price', 'order_price'] as $field) {
+            if (! array_key_exists($field, $payload)) {
+                continue;
+            }
+
+            if (
+                ! is_numeric($payload[$field])
+                || ! is_finite((float) $payload[$field])
+                || (float) $payload[$field] < 0
+            ) {
+                throw new InvalidArgumentException(
+                    "Field {$field} harus berupa angka positif atau nol."
+                );
+            }
+        }
+
+        // Event order.price harus membawa harga.
+        if (
+            $event === 'order.price'
+            && ! array_key_exists('price', $payload)
+            && ! array_key_exists('order_price', $payload)
+        ) {
+            throw new InvalidArgumentException(
+                'Harga pengiriman tidak tersedia.'
+            );
+        }
     }
 }
