@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ShipmentEventResource;
 use App\Http\Resources\ShipmentResource;
 use App\Models\Order;
-use App\Models\ShipmentEvent;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,10 +14,30 @@ class OrderShipmentController extends Controller
 {
     public function show(Request $request, Order $order): JsonResponse
     {
+        // Pastikan order merupakan milik pelanggan yang login.
         abort_unless(
             (int) $order->user_id === (int) $request->user()->id,
             404
         );
+
+        // Ambil shipment dan seluruh riwayatnya dengan eager loading.
+        $order->load([
+            'shipment.events' => function (HasMany $query) {
+                $query
+                    ->select([
+                        'id',
+                        'uuid',
+                        'shipment_id',
+                        'event_type',
+                        'status',
+                        'description',
+                        'location',
+                        'occurred_at',
+                    ])
+                    ->orderByDesc('occurred_at')
+                    ->orderByDesc('id');
+            },
+        ]);
 
         $shipment = $order->shipment;
 
@@ -28,12 +48,6 @@ class OrderShipmentController extends Controller
             ]);
         }
 
-        $events = ShipmentEvent::query()
-            ->where('shipment_id', $shipment->id)
-            ->orderByDesc('occurred_at')
-            ->orderByDesc('id')
-            ->get();
-
         return response()->json([
             'message' => 'Informasi pelacakan berhasil diambil.',
             'data' => [
@@ -43,7 +57,9 @@ class OrderShipmentController extends Controller
                     'status' => $order->status,
                 ],
                 'shipment' => new ShipmentResource($shipment),
-                'events' => ShipmentEventResource::collection($events),
+                'events' => ShipmentEventResource::collection(
+                    $shipment->events
+                ),
             ],
         ]);
     }
