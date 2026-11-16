@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\Payment;
+use App\Jobs\CreateBiteshipShipmentJob;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -282,6 +283,10 @@ class MidtransNotificationService
         // order masuk ke tahap pemrosesan.
         $order->status = 'processing';
         $order->save();
+
+        // Buat shipment setelah transaksi pembayaran berhasil commit.
+        CreateBiteshipShipmentJob::dispatch($order->id)
+            ->afterCommit();
     }
 
     private function mapPaymentStatus(

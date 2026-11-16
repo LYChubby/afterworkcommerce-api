@@ -14,6 +14,7 @@ use App\Services\OrderService;
 use App\Models\ShippingQuote;
 use Illuminate\Support\Str;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -90,6 +91,9 @@ beforeEach(function () {
 
 function createMidtransWebhookTestPayment($test): array
 {
+
+    Queue::fake();
+
     $warehouse = Warehouse::query()
         ->where('is_active', true)
         ->orderBy('id')
