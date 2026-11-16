@@ -12,6 +12,7 @@ use App\Services\MidtransNotificationService;
 use App\Services\OrderCancellationService;
 use App\Services\OrderService;
 use App\Models\ShippingQuote;
+use App\Jobs\CreateBiteshipShipmentJob;
 use Illuminate\Support\Str;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -250,6 +251,11 @@ test('duplicate successful notification does not deduct stock twice', function (
     $service->handle($payload);
     $service->handle($payload);
 
+    Queue::assertPushedTimes(
+        CreateBiteshipShipmentJob::class,
+        1
+    );
+
     $order->refresh();
     $payment->refresh();
     $this->variant->refresh();
@@ -296,6 +302,10 @@ test('late successful payment is recorded without restoring expired stock', func
         ->and((int) $this->variant->stock_reserved)->toBe(0)
         ->and($order->inventoryReservations()->first()->status)
         ->toBe('expired');
+
+    Queue::assertNotPushed(
+        CreateBiteshipShipmentJob::class
+    );
 });
 
 test('capture notification with challenge fraud status does not confirm payment', function () {
@@ -317,6 +327,10 @@ test('capture notification with challenge fraud status does not confirm payment'
         ->and($order->status)->toBe('pending')
         ->and((int) $this->variant->stock_on_hand)->toBe(100)
         ->and((int) $this->variant->stock_reserved)->toBe(2);
+
+    Queue::assertNotPushed(
+        CreateBiteshipShipmentJob::class
+    );
 });
 
 
