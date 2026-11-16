@@ -591,3 +591,57 @@ test('it rejects unauthenticated customers from viewing shipment tracking', func
 
     $response->assertUnauthorized();
 });
+
+
+
+test('it returns shipment events ordered from newest to oldest', function () {
+    $order = $this->shipment->order;
+
+    $olderEventId = \Illuminate\Support\Facades\DB::table('shipment_events')
+        ->insertGetId([
+            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'shipment_id' => $this->shipment->id,
+            'event_type' => 'order.status',
+            'status' => 'picked',
+            'description' => 'Package picked up',
+            'location' => 'Bandung',
+            'occurred_at' => now()->subHours(2),
+            'event_hash' => hash('sha256', 'older-event'),
+            'payload' => json_encode([
+                'internal_reference' => 'PRIVATE-OLDER',
+            ]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+    $newerEventId = \Illuminate\Support\Facades\DB::table('shipment_events')
+        ->insertGetId([
+            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'shipment_id' => $this->shipment->id,
+            'event_type' => 'order.status',
+            'status' => 'inTransit',
+            'description' => 'Package is in transit',
+            'location' => 'Jakarta',
+            'occurred_at' => now()->subHour(),
+            'event_hash' => hash('sha256', 'newer-event'),
+            'payload' => json_encode([
+                'internal_reference' => 'PRIVATE-NEWER',
+            ]),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+    $response = $this->actingAs($order->user, 'sanctum')
+        ->getJson("/api/orders/{$order->id}/shipment");
+
+    $response
+        ->assertOk()
+        ->assertJsonPath('data.events.0.id', $newerEventId)
+        ->assertJsonPath('data.events.0.status', 'inTransit')
+        ->assertJsonPath('data.events.0.location', 'Jakarta')
+        ->assertJsonPath('data.events.1.id', $olderEventId)
+        ->assertJsonPath('data.events.1.status', 'picked')
+        ->assertJsonPath('data.events.1.location', 'Bandung')
+        ->assertJsonMissingPath('data.events.0.payload')
+        ->assertJsonMissingPath('data.events.0.event_hash');
+});
