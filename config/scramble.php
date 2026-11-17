@@ -178,7 +178,10 @@ return [
         RestrictedDocsAccess::class,
     ],
 
-    'extensions' => [],
+    'extensions' => [
+        \App\Scramble\Extensions\ApiExceptionToResponseExtension::class,
+        \App\Scramble\Extensions\ApiServerErrorOperationExtension::class,
+    ],
 
     /*
      * Automatically document API security (OpenAPI `security` / `securitySchemes`) based on route
