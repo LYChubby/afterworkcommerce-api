@@ -260,6 +260,9 @@
                                         {
                                             "type": "object",
                                             "properties": {
+                                                "success": {
+                                                    "type": "boolean"
+                                                },
                                                 "message": {
                                                     "type": "string",
                                                     "const": "Informasi pelacakan berhasil diambil."
@@ -301,27 +304,40 @@
                                                         "shipment",
                                                         "events"
                                                     ]
+                                                },
+                                                "meta": {
+                                                    "type": "null"
                                                 }
                                             },
                                             "required": [
+                                                "success",
                                                 "message",
-                                                "data"
+                                                "data",
+                                                "meta"
                                             ]
                                         },
                                         {
                                             "type": "object",
                                             "properties": {
+                                                "success": {
+                                                    "type": "boolean"
+                                                },
                                                 "message": {
                                                     "type": "string",
                                                     "const": "Informasi pengiriman belum tersedia."
                                                 },
                                                 "data": {
                                                     "type": "null"
+                                                },
+                                                "meta": {
+                                                    "type": "null"
                                                 }
                                             },
                                             "required": [
+                                                "success",
                                                 "message",
-                                                "data"
+                                                "data",
+                                                "meta"
                                             ]
                                         }
                                     ]
@@ -382,12 +398,24 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
                                         "message": {
                                             "type": "string"
+                                        },
+                                        "data": {
+                                            "type": "null"
+                                        },
+                                        "errors": {
+                                            "type": "null"
                                         }
                                     },
                                     "required": [
-                                        "message"
+                                        "success",
+                                        "message",
+                                        "data",
+                                        "errors"
                                     ]
                                 }
                             }
@@ -400,6 +428,9 @@
                                 "schema": {
                                     "type": "object",
                                     "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
                                         "message": {
                                             "type": "string",
                                             "const": "Snap token berhasil dibuat."
@@ -440,11 +471,16 @@
                                                 "snap_token",
                                                 "redirect_url"
                                             ]
+                                        },
+                                        "meta": {
+                                            "type": "null"
                                         }
                                     },
                                     "required": [
+                                        "success",
                                         "message",
-                                        "data"
+                                        "data",
+                                        "meta"
                                     ]
                                 }
                             }
@@ -489,11 +525,19 @@
                                         "message": {
                                             "type": "string",
                                             "const": "Layanan pengiriman sedang tidak tersedia. Silakan coba kembali."
+                                        },
+                                        "data": {
+                                            "type": "null"
+                                        },
+                                        "errors": {
+                                            "type": "null"
                                         }
                                     },
                                     "required": [
                                         "success",
-                                        "message"
+                                        "message",
+                                        "data",
+                                        "errors"
                                     ]
                                 }
                             }
@@ -624,12 +668,16 @@
                                                     ]
                                                 }
                                             ]
+                                        },
+                                        "meta": {
+                                            "type": "null"
                                         }
                                     },
                                     "required": [
                                         "success",
                                         "message",
-                                        "data"
+                                        "data",
+                                        "meta"
                                     ]
                                 }
                             }
