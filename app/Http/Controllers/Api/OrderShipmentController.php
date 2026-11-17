@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ShipmentEventResource;
 use App\Http\Resources\ShipmentResource;
 use App\Models\Order;
+use App\Support\ApiResponse;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -42,15 +43,14 @@ class OrderShipmentController extends Controller
         $shipment = $order->shipment;
 
         if (!$shipment) {
-            return response()->json([
-                'message' => 'Informasi pengiriman belum tersedia.',
-                'data' => null,
-            ]);
+            return ApiResponse::success(
+                data: null,
+                message: 'Informasi pengiriman belum tersedia.',
+            );
         }
 
-        return response()->json([
-            'message' => 'Informasi pelacakan berhasil diambil.',
-            'data' => [
+        return ApiResponse::success(
+            data: [
                 'order' => [
                     'uuid' => $order->uuid,
                     'order_number' => $order->order_number,
@@ -61,6 +61,7 @@ class OrderShipmentController extends Controller
                     $shipment->events
                 ),
             ],
-        ]);
+            message: 'Informasi pelacakan berhasil diambil.',
+        );
     }
 }
