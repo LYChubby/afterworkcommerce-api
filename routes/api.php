@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ShippingRateController;
 use App\Http\Controllers\Api\BiteshipWebhookController;
 use App\Http\Controllers\Api\OrderShipmentController;
+use App\Http\Controllers\Api\GoogleAuthController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -39,3 +40,10 @@ Route::middleware([
 Route::post('/webhooks/biteship', BiteshipWebhookController::class)
     ->middleware('throttle:60,1')
     ->name('webhooks.biteship');
+
+Route::post(
+    '/auth/google/exchange',
+    [GoogleAuthController::class, 'exchange']
+)
+    ->middleware('throttle:10,1')
+    ->name('auth.google.exchange');
