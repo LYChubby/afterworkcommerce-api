@@ -6,17 +6,22 @@ use App\Http\Controllers\Controller;
 use App\Models\SocialAccount;
 use App\Models\User;
 use App\Services\OAuthLoginCodeService;
+use App\Support\ApiResponse;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
 use Illuminate\Support\Str;
 use Throwable;
+use RuntimeException;
 
 class GoogleAuthController extends Controller
 {
     /**
-     * Redirect the user to Google OAuth.
+     * Arahkan pengguna ke Google OAuth.
      */
     public function redirect(): RedirectResponse
     {
@@ -24,7 +29,7 @@ class GoogleAuthController extends Controller
     }
 
     /**
-     * Handle the Google OAuth callback.
+     * Tangani callback Google OAuth.
      */
     public function callback(
         OAuthLoginCodeService $loginCodeService
@@ -124,8 +129,68 @@ class GoogleAuthController extends Controller
         );
     }
 
+
     /**
-     * Redirect to the frontend with a safe error identifier.
+     * Tukar kode login OAuth sekali pakai menjadi token Sanctum.
+     */
+    public function exchange(
+        Request $request,
+        OAuthLoginCodeService $loginCodeService
+    ): JsonResponse {
+        $validator = Validator::make($request->all(), [
+            'code' => [
+                'required',
+                'string',
+                'regex:/\A[a-f0-9]{64}\z/',
+            ],
+        ]);
+
+        if ($validator->fails()) {
+            return ApiResponse::error(
+                message: 'Invalid login code.',
+                status: 422,
+                errors: $validator->errors()->toArray(),
+            );
+        }
+
+        try {
+            $result = $loginCodeService->exchange(
+                $validator->validated()['code']
+            );
+
+            $user = $result->accessToken->tokenable;
+
+            if (! $user instanceof User) {
+                return ApiResponse::error(
+                    message: 'Unable to authenticate user.',
+                    status: 401,
+                );
+            }
+
+            return ApiResponse::success(
+                data: [
+                    'access_token' => $result->plainTextToken,
+                    'token_type' => 'Bearer',
+                    'user' => [
+                        'uuid' => $user->uuid,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'role' => $user->role,
+                        'avatar' => $user->avatar,
+                    ],
+                ],
+                message: 'Login berhasil.',
+            );
+        } catch (RuntimeException $exception) {
+            return ApiResponse::error(
+                message: 'Invalid or expired login code.',
+                status: 401,
+            );
+        }
+    }
+
+    /**
+     * Arahkan ke frontend dengan identifier error yang aman.
      */
     private function frontendError(string $error): RedirectResponse
     {
