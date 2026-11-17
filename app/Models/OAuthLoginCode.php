@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OAuthLoginCode extends Model
 {
+    protected $table = 'oauth_login_codes';
+
     protected $fillable = [
         'user_id',
         'code_hash',
