@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\ShippingRateController;
 use App\Http\Controllers\Api\BiteshipWebhookController;
 use App\Http\Controllers\Api\OrderShipmentController;
 use App\Http\Controllers\Api\GoogleAuthController;
+use App\Http\Controllers\Api\AuthenticatedUserController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -20,6 +21,16 @@ Route::middleware('auth:sanctum')->group(function () {
     )
         ->middleware('throttle:60,1')
         ->name('orders.shipment.show');
+
+    Route::get(
+        '/auth/me',
+        [AuthenticatedUserController::class, 'show']
+    )->name('auth.me');
+
+    Route::post(
+        '/auth/logout',
+        [AuthenticatedUserController::class, 'destroy']
+    )->name('auth.logout');
 });
 
 Route::post(
