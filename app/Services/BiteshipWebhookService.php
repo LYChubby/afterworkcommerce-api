@@ -35,7 +35,33 @@ class BiteshipWebhookService
             $event,
             $providerOrderId
         ) {
+
+            $shipmentReference = Shipment::query()
+                ->where('provider', 'biteship')
+                ->where('provider_order_id', $providerOrderId)
+                ->first();
+
+            if (! $shipmentReference) {
+                throw new InvalidArgumentException(
+                    'Shipment tidak ditemukan untuk order Biteship tersebut.'
+                );
+            }
+
+            // Urutan lock harus konsisten: order terlebih dahulu.
+            $order = Order::query()
+                ->whereKey($shipmentReference->order_id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $order) {
+                throw new InvalidArgumentException(
+                    'Order untuk shipment Biteship tidak ditemukan.'
+                );
+            }
+
+            // Setelah order terkunci, baru kunci shipment.
             $shipment = Shipment::query()
+                ->whereKey($shipmentReference->id)
                 ->where('provider', 'biteship')
                 ->where('provider_order_id', $providerOrderId)
                 ->lockForUpdate()
@@ -109,13 +135,18 @@ class BiteshipWebhookService
             }
 
             // Simpan status shipment hanya untuk event status.
-            if ($event === 'order.status' && $status !== null) {
+            if (
+                $event === 'order.status'
+                && $status !== null
+                && $this->isKnownShipmentStatus($status)
+            ) {
                 $shipment->status = $status;
 
-                if (strtolower($status) === 'delivered') {
+                if (strtolower(trim($status)) === 'delivered') {
                     $shipment->delivered_at ??= now();
                 }
             }
+
 
             // Perbarui biaya pengiriman.
             if ($event === 'order.price') {
@@ -126,8 +157,12 @@ class BiteshipWebhookService
 
             $shipment->save();
 
-            if ($event === 'order.status' && $status !== null) {
-                $this->syncOrderStatus($shipment, $status);
+            if (
+                $event === 'order.status'
+                && $status !== null
+                && $this->isKnownShipmentStatus($status)
+            ) {
+                $this->syncOrderStatus($order, $status);
             }
 
             return true;
@@ -167,15 +202,16 @@ class BiteshipWebhookService
         };
     }
 
+
     private function syncOrderStatus(
-        Shipment $shipment,
+        Order $order,
         string $shipmentStatus
     ): void {
-        $normalizedStatus = strtolower($shipmentStatus);
-
+        $normalizedStatus = strtolower(trim($shipmentStatus));
 
         $targetStatus = match ($normalizedStatus) {
-            'confirmed', 'scheduled', 'allocated' => Order::STATUS_PROCESSING,
+            'confirmed', 'scheduled', 'allocated' =>
+            Order::STATUS_PROCESSING,
 
             'picking_up',
             'pickingup',
@@ -183,46 +219,33 @@ class BiteshipWebhookService
             'in_transit',
             'intransit',
             'dropping_off',
-            'droppingoff' => Order::STATUS_SHIPPED,
+            'droppingoff' =>
+            Order::STATUS_SHIPPED,
 
-            'delivered' => Order::STATUS_DELIVERED,
+            'delivered' =>
+            Order::STATUS_DELIVERED,
 
             'return_in_transit',
             'returnintransit',
-            'returned' => Order::STATUS_RETURNED,
+            'returned' =>
+            Order::STATUS_RETURNED,
 
             default => null,
         };
 
-
-        // Status yang tidak dikenali tidak mengubah order.
         if ($targetStatus === null) {
             return;
         }
 
-        $order = Order::query()
-            ->whereKey($shipment->order_id)
-            ->lockForUpdate()
-            ->first();
-
-        if (! $order) {
-            return;
-        }
-
-        // Jangan mengubah order yang sudah dibatalkan atau kedaluwarsa.
         if (in_array($order->status, [
             Order::STATUS_CANCELLED,
             Order::STATUS_EXPIRED,
+            Order::STATUS_RETURNED,
         ], true)) {
             return;
         }
 
-        // Status returned tidak boleh diturunkan kembali.
-        if ($order->status === Order::STATUS_RETURNED) {
-            return;
-        }
-
-        // Status returned memiliki prioritas khusus.
+        // Status returned memiliki prioritas terminal.
         if ($targetStatus === Order::STATUS_RETURNED) {
             $order->status = Order::STATUS_RETURNED;
             $order->save();
@@ -240,7 +263,7 @@ class BiteshipWebhookService
         $currentPriority = $priority[$order->status] ?? -1;
         $targetPriority = $priority[$targetStatus] ?? -1;
 
-        // Abaikan webhook lama yang menyebabkan status mundur.
+        // Abaikan webhook lama yang menyebabkan status order mundur.
         if ($targetPriority <= $currentPriority) {
             return;
         }
@@ -344,5 +367,29 @@ class BiteshipWebhookService
                 'Harga pengiriman tidak tersedia.'
             );
         }
+    }
+
+    private function isKnownShipmentStatus(string $status): bool
+    {
+        return in_array(
+            strtolower(trim($status)),
+            [
+                'confirmed',
+                'scheduled',
+                'allocated',
+                'picking_up',
+                'pickingup',
+                'picked',
+                'in_transit',
+                'intransit',
+                'dropping_off',
+                'droppingoff',
+                'delivered',
+                'return_in_transit',
+                'returnintransit',
+                'returned',
+            ],
+            true
+        );
     }
 }
