@@ -13,6 +13,25 @@ use RuntimeException;
 class InventoryService
 {
     /**
+     * Memastikan data stok berada dalam kondisi konsisten.
+     */
+    private function assertStockInvariant(ProductVariant $variant): void
+    {
+        $stockOnHand = (int) $variant->stock_on_hand;
+        $stockReserved = (int) $variant->stock_reserved;
+
+        if (
+            $stockOnHand < 0 ||
+            $stockReserved < 0 ||
+            $stockReserved > $stockOnHand
+        ) {
+            throw new RuntimeException(
+                'Data stok tidak konsisten.'
+            );
+        }
+    }
+
+    /**
      * Mencadangkan stok untuk satu item pesanan.
      */
     public function reserveForOrderItem(
@@ -21,7 +40,10 @@ class InventoryService
         // order_id bersifat tetap, sehingga boleh dibaca sebelum lock.
         $initialItem = OrderItem::query()->findOrFail($orderItemId);
 
-        return DB::transaction(function () use ($orderItemId, $initialItem) {
+        return DB::transaction(function () use (
+            $orderItemId,
+            $initialItem
+        ) {
             // Urutan lock standar: order -> item/reservation -> variant.
             $order = Order::query()
                 ->lockForUpdate()
@@ -31,20 +53,30 @@ class InventoryService
                 ->lockForUpdate()
                 ->findOrFail($orderItemId);
 
-            if ($item->order_id !== $order->id) {
+            if ((int) $item->order_id !== (int) $order->id) {
                 throw new RuntimeException(
                     'Item pesanan tidak sesuai dengan pesanan.'
                 );
             }
 
-            // Retry request tidak boleh membuat reservasi kedua.
+            // Retry tidak boleh membuat reservasi kedua.
             $existingReservation = InventoryReservation::query()
                 ->where('order_item_id', $item->id)
                 ->lockForUpdate()
                 ->first();
 
             if ($existingReservation) {
-                return $existingReservation;
+                if (in_array(
+                    $existingReservation->status,
+                    ['active', 'confirmed'],
+                    true
+                )) {
+                    return $existingReservation;
+                }
+
+                throw new RuntimeException(
+                    'Item pesanan sudah memiliki reservasi dengan status akhir.'
+                );
             }
 
             if ($order->status !== 'pending') {
@@ -60,7 +92,7 @@ class InventoryService
             }
 
             if (
-                !$order->payment_deadline_at ||
+                ! $order->payment_deadline_at ||
                 $order->payment_deadline_at->lessThanOrEqualTo(now())
             ) {
                 throw new RuntimeException(
@@ -68,7 +100,7 @@ class InventoryService
                 );
             }
 
-            if (!$item->product_variant_id) {
+            if (! $item->product_variant_id) {
                 throw new RuntimeException(
                     'Varian produk tidak tersedia.'
                 );
@@ -84,11 +116,13 @@ class InventoryService
                 ->lockForUpdate()
                 ->findOrFail($item->product_variant_id);
 
-            if (!$variant->is_active) {
+            if (! $variant->is_active) {
                 throw new RuntimeException(
                     'Varian produk tidak aktif.'
                 );
             }
+
+            $this->assertStockInvariant($variant);
 
             $availableStock =
                 $variant->stock_on_hand - $variant->stock_reserved;
@@ -104,6 +138,8 @@ class InventoryService
 
             $variant->stock_reserved += $item->quantity;
             $variant->save();
+
+            $this->assertStockInvariant($variant);
 
             $reservation = InventoryReservation::create([
                 'order_id' => $order->id,
@@ -125,7 +161,7 @@ class InventoryService
                 'stock_reserved_after' => $variant->stock_reserved,
                 'reference_type' => 'inventory_reservation',
                 'reference_id' => $reservation->id,
-                'notes' => 'Reservasi stok untuk pesanan ' .
+                'notes' => 'Reservasi stok untuk pesanan '.
                     $order->order_number,
             ]);
 
@@ -158,7 +194,7 @@ class InventoryService
                 ->lockForUpdate()
                 ->findOrFail($reservationId);
 
-            if ($reservation->order_id !== $order->id) {
+            if ((int) $reservation->order_id !== (int) $order->id) {
                 throw new RuntimeException(
                     'Reservasi tidak sesuai dengan pesanan.'
                 );
@@ -181,14 +217,14 @@ class InventoryService
                 );
             }
 
-            if ($order->payment_status !== 'paid' || !$order->paid_at) {
+            if ($order->payment_status !== 'paid' || ! $order->paid_at) {
                 throw new RuntimeException(
                     'Pembayaran pesanan belum diverifikasi.'
                 );
             }
 
             if (
-                !$reservation->expires_at ||
+                ! $reservation->expires_at ||
                 $order->paid_at->greaterThan($reservation->expires_at)
             ) {
                 throw new RuntimeException(
@@ -196,9 +232,17 @@ class InventoryService
                 );
             }
 
+            if ($reservation->quantity < 1) {
+                throw new RuntimeException(
+                    'Jumlah stok reservasi tidak valid.'
+                );
+            }
+
             $variant = ProductVariant::query()
                 ->lockForUpdate()
                 ->findOrFail($reservation->product_variant_id);
+
+            $this->assertStockInvariant($variant);
 
             if (
                 $variant->stock_reserved < $reservation->quantity ||
@@ -216,6 +260,8 @@ class InventoryService
             $variant->stock_reserved -= $reservation->quantity;
             $variant->save();
 
+            $this->assertStockInvariant($variant);
+
             $reservation->status = 'confirmed';
             $reservation->confirmed_at = now();
             $reservation->save();
@@ -231,7 +277,7 @@ class InventoryService
                 'stock_reserved_after' => $variant->stock_reserved,
                 'reference_type' => 'inventory_reservation',
                 'reference_id' => $reservation->id,
-                'notes' => 'Konfirmasi reservasi pesanan ' .
+                'notes' => 'Konfirmasi reservasi pesanan '.
                     $order->order_number,
             ]);
 
@@ -246,7 +292,7 @@ class InventoryService
         int $reservationId,
         string $finalStatus = 'released'
     ): InventoryReservation {
-        if (!in_array($finalStatus, ['released', 'expired'], true)) {
+        if (! in_array($finalStatus, ['released', 'expired'], true)) {
             throw new RuntimeException(
                 'Status akhir reservasi tidak valid.'
             );
@@ -268,7 +314,7 @@ class InventoryService
                 ->lockForUpdate()
                 ->findOrFail($reservationId);
 
-            if ($reservation->order_id !== $order->id) {
+            if ((int) $reservation->order_id !== (int) $order->id) {
                 throw new RuntimeException(
                     'Reservasi tidak sesuai dengan pesanan.'
                 );
@@ -295,6 +341,12 @@ class InventoryService
                 );
             }
 
+            if ($reservation->quantity < 1) {
+                throw new RuntimeException(
+                    'Jumlah stok reservasi tidak valid.'
+                );
+            }
+
             if ($finalStatus === 'released') {
                 if ($order->status !== 'cancelled') {
                     throw new RuntimeException(
@@ -311,7 +363,7 @@ class InventoryService
                 }
 
                 if (
-                    !$reservation->expires_at ||
+                    ! $reservation->expires_at ||
                     $reservation->expires_at->isFuture()
                 ) {
                     throw new RuntimeException(
@@ -324,6 +376,8 @@ class InventoryService
                 ->lockForUpdate()
                 ->findOrFail($reservation->product_variant_id);
 
+            $this->assertStockInvariant($variant);
+
             if ($variant->stock_reserved < $reservation->quantity) {
                 throw new RuntimeException(
                     'Jumlah stok reservasi tidak konsisten.'
@@ -335,6 +389,8 @@ class InventoryService
 
             $variant->stock_reserved -= $reservation->quantity;
             $variant->save();
+
+            $this->assertStockInvariant($variant);
 
             $reservation->status = $finalStatus;
             $reservation->released_at = now();
@@ -351,7 +407,7 @@ class InventoryService
                 'stock_reserved_after' => $variant->stock_reserved,
                 'reference_type' => 'inventory_reservation',
                 'reference_id' => $reservation->id,
-                'notes' => 'Pelepasan reservasi pesanan ' .
+                'notes' => 'Pelepasan reservasi pesanan '.
                     $order->order_number,
             ]);
 
