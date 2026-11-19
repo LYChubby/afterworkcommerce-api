@@ -24,8 +24,13 @@ class BiteshipWebhookService
             throw new InvalidArgumentException('Event Biteship tidak valid.');
         }
 
-        if (! is_string($providerOrderId) || $providerOrderId === '') {
-            throw new InvalidArgumentException('Order ID Biteship tidak tersedia.');
+        if (
+            ! is_string($providerOrderId) ||
+            trim($providerOrderId) === ''
+        ) {
+            throw new InvalidArgumentException(
+                'Order ID Biteship tidak tersedia.'
+            );
         }
 
         $this->validatePayload($event, $payload);
@@ -145,18 +150,28 @@ class BiteshipWebhookService
             }
 
             // Simpan status shipment hanya untuk event status.
+            // Status shipment tidak boleh mundur dari progres sebelumnya.
             if (
                 $event === 'order.status'
                 && $normalizedStatus !== null
                 && $this->isKnownShipmentStatus($normalizedStatus)
             ) {
-                $shipment->status = $shipmentStatus;
+                $currentStatusPriority = $this->getShipmentStatusPriority(
+                    (string) $shipment->status
+                );
+
+                $incomingStatusPriority = $this->getShipmentStatusPriority(
+                    $normalizedStatus
+                );
+
+                if ($incomingStatusPriority > $currentStatusPriority) {
+                    $shipment->status = $shipmentStatus;
+                }
 
                 if ($normalizedStatus === 'delivered') {
                     $shipment->delivered_at ??= now();
                 }
             }
-
 
             // Perbarui biaya pengiriman.
             if ($event === 'order.price') {

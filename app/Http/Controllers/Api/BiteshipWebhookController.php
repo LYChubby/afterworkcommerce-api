@@ -17,6 +17,20 @@ class BiteshipWebhookController extends Controller
         $headerName = config('biteship.webhook_header');
         $secret = config('biteship.webhook_secret');
 
+        // Pastikan konfigurasi autentikasi webhook valid.
+        if (
+            ! is_string($headerName) ||
+            trim($headerName) === '' ||
+            ! is_string($secret) ||
+            trim($secret) === ''
+        ) {
+            return response()->json([
+                'message' => 'Webhook authentication is not configured.',
+            ], 503);
+        }
+
+        $headerName = trim($headerName);
+
         // Pastikan secret sudah dikonfigurasi.
         if (! is_string($secret) || $secret === '') {
             return response()->json([

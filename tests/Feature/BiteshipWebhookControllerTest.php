@@ -287,7 +287,7 @@ it('updates order status to returned when shipment is returned', function () {
         ->toBe(\App\Models\Order::STATUS_RETURNED);
 });
 
-it('does not downgrade delivered order status from late webhook', function () {
+it('does not downgrade delivered shipment or order status from late webhook', function () {
     $shipment = $this->shipment->fresh();
 
     $shipment->update([
@@ -308,7 +308,7 @@ it('does not downgrade delivered order status from late webhook', function () {
 
     $response->assertOk();
 
-    expect($shipment->fresh()->status)->toBe('inTransit');
+    expect($shipment->fresh()->status)->toBe('delivered');
 
     expect($shipment->order->fresh()->status)
         ->toBe(\App\Models\Order::STATUS_DELIVERED);
@@ -487,9 +487,9 @@ test('it does not downgrade order status when an older webhook arrives', functio
 
     $response->assertOk();
 
-    // Shipment mengikuti status terbaru dari webhook.
+    // Shipment tidak boleh mundur dari picked ke confirmed.
     expect($shipment->fresh()->status)
-        ->toBe('confirmed');
+        ->toBe('picked');
 
     // Order tidak boleh mundur dari shipped ke processing.
     expect($shipment->order->fresh()->status)
@@ -762,6 +762,10 @@ it('rejects webhook when order ID contains only whitespace', function () {
 
     $response->assertUnprocessable();
 
+    $response->assertJson([
+        'message' => 'Order ID Biteship tidak tersedia.',
+    ]);
+
     $this->assertDatabaseCount('shipment_events', 0);
 
     $this->assertDatabaseHas('shipments', [
@@ -1008,11 +1012,37 @@ it('handles return in transit status correctly', function () {
         ->toBe(\App\Models\Order::STATUS_RETURNED);
 });
 
+it('does not downgrade return in transit shipment from late delivered webhook', function () {
+    $this->shipment->update([
+        'status' => 'returnInTransit',
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => $this->shipment->provider_order_id,
+        'status' => 'delivered',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    expect($this->shipment->fresh()->status)
+        ->toBe('returnInTransit');
+});
+
 it('does not downgrade returned order status from late delivered webhook', function () {
     $order = $this->shipment->order;
 
     $order->update([
         'status' => \App\Models\Order::STATUS_RETURNED,
+    ]);
+
+    $this->shipment->update([
+        'status' => 'returned',
     ]);
 
     $response = $this->withHeaders([
@@ -1027,6 +1057,8 @@ it('does not downgrade returned order status from late delivered webhook', funct
         ->assertJson([
             'processed' => true,
         ]);
+
+    expect($this->shipment->fresh()->status)->toBe('returned');
 
     expect($order->fresh()->status)
         ->toBe(\App\Models\Order::STATUS_RETURNED);
@@ -1432,4 +1464,96 @@ it('preserves expired order status when return in transit webhook arrives', func
 
     expect($order->fresh()->status)
         ->toBe(\App\Models\Order::STATUS_EXPIRED);
+});
+
+it('rejects webhook when header configuration is empty', function () {
+    config([
+        'biteship.webhook_header' => '',
+        'biteship.webhook_secret' => 'test-biteship-secret',
+    ]);
+
+    $response = $this->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'delivered',
+    ]);
+
+    $response->assertServiceUnavailable()
+        ->assertJson([
+            'message' => 'Webhook authentication is not configured.',
+        ]);
+});
+
+it('rejects webhook when secret configuration is empty', function () {
+    config([
+        'biteship.webhook_header' => 'X-AfterWork-Biteship-Key',
+        'biteship.webhook_secret' => '',
+    ]);
+
+    $response = $this->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'delivered',
+    ]);
+
+    $response->assertServiceUnavailable()
+        ->assertJson([
+            'message' => 'Webhook authentication is not configured.',
+        ]);
+});
+
+it('rejects webhook when secret configuration contains only whitespace', function () {
+    config([
+        'biteship.webhook_header' => 'X-AfterWork-Biteship-Key',
+        'biteship.webhook_secret' => '   ',
+    ]);
+
+    $response = $this->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'delivered',
+    ]);
+
+    $response->assertServiceUnavailable()
+        ->assertJson([
+            'message' => 'Webhook authentication is not configured.',
+        ]);
+});
+
+it('rejects webhook when header configuration contains only whitespace', function () {
+    config([
+        'biteship.webhook_header' => '   ',
+        'biteship.webhook_secret' => 'test-biteship-secret',
+    ]);
+
+    $response = $this->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'delivered',
+    ]);
+
+    $response->assertServiceUnavailable()
+        ->assertJson([
+            'message' => 'Webhook authentication is not configured.',
+        ]);
+});
+
+it('trims whitespace from the configured webhook header name', function () {
+    config([
+        'biteship.webhook_header' => ' X-AfterWork-Biteship-Key ',
+        'biteship.webhook_secret' => 'test-biteship-secret',
+    ]);
+
+    $response = $this
+        ->withHeader(
+            'X-AfterWork-Biteship-Key',
+            'test-biteship-secret'
+        )
+        ->postJson('/api/webhooks/biteship', [
+            'event' => 'order.status',
+            'order_id' => 'bite-order-test-001',
+            'status' => 'delivered',
+        ]);
+
+    $response->assertOk();
 });
