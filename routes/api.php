@@ -1,68 +1,65 @@
 <?php
 
-use App\Http\Controllers\Api\MidtransNotificationController;
-use App\Http\Controllers\Api\PaymentController;
-use App\Http\Controllers\Api\ShippingRateController;
-use App\Http\Controllers\Api\BiteshipWebhookController;
-use App\Http\Controllers\Api\OrderShipmentController;
-use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\AuthenticatedUserController;
+use App\Http\Controllers\Api\BiteshipWebhookController;
+use App\Http\Controllers\Api\GoogleAuthController;
+use App\Http\Controllers\Api\LoginController;
+use App\Http\Controllers\Api\MidtransNotificationController;
+use App\Http\Controllers\Api\OrderShipmentController;
+use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\RegisterController;
+use App\Http\Controllers\Api\ShippingRateController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('auth:sanctum')->group(function () {
-    Route::post(
-        '/orders/{order}/payment',
-        [PaymentController::class, 'store']
-    )->name('orders.payment.store');
+/*
+|--------------------------------------------------------------------------
+| Public / Guest Routes
+|--------------------------------------------------------------------------
+*/
 
-    Route::get(
-        '/orders/{order}/shipment',
-        [OrderShipmentController::class, 'show']
-    )
+Route::middleware('throttle:5,1')->group(function () {
+    Route::post('/auth/register', RegisterController::class)->name('auth.register');
+    Route::post('/auth/login', LoginController::class)->name('auth.login');
+});
+
+Route::post('/auth/google/exchange', [GoogleAuthController::class, 'exchange'])
+    ->middleware('throttle:10,1')
+    ->name('auth.google.exchange');
+
+/*
+|--------------------------------------------------------------------------
+| Authenticated Routes (Sanctum)
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('auth:sanctum')->group(function () {
+    // Auth
+    Route::get('/auth/me', [AuthenticatedUserController::class, 'show'])->name('auth.me');
+    Route::post('/auth/logout', [AuthenticatedUserController::class, 'destroy'])->name('auth.logout');
+
+    // Orders
+    Route::post('/orders/{order}/payment', [PaymentController::class, 'store'])
+        ->name('orders.payment.store');
+
+    Route::get('/orders/{order}/shipment', [OrderShipmentController::class, 'show'])
         ->middleware('throttle:60,1')
         ->name('orders.shipment.show');
 
-    Route::get(
-        '/auth/me',
-        [AuthenticatedUserController::class, 'show']
-    )->name('auth.me');
-
-    Route::post(
-        '/auth/logout',
-        [AuthenticatedUserController::class, 'destroy']
-    )->name('auth.logout');
+    // Shipping
+    Route::post('/shipping/rates', ShippingRateController::class)
+        ->middleware('throttle:10,1')
+        ->name('shipping.rates');
 });
 
-Route::post(
-    '/auth/register',
-    RegisterController::class
-)
-    ->middleware('throttle:5,1')
-    ->name('auth.register');
+/*
+|--------------------------------------------------------------------------
+| Webhook / Notification Routes (No Auth)
+|--------------------------------------------------------------------------
+*/
 
-Route::post(
-    '/payments/midtrans/notification',
-    MidtransNotificationController::class
-)->name('payments.midtrans.notification');
-
-Route::middleware([
-    'auth:sanctum',
-    'throttle:10,1',
-])->group(function () {
-    Route::post(
-        '/shipping/rates',
-        ShippingRateController::class
-    )->name('shipping.rates');
-});
+Route::post('/payments/midtrans/notification', MidtransNotificationController::class)
+    ->name('payments.midtrans.notification');
 
 Route::post('/webhooks/biteship', BiteshipWebhookController::class)
     ->middleware('throttle:60,1')
     ->name('webhooks.biteship');
-
-Route::post(
-    '/auth/google/exchange',
-    [GoogleAuthController::class, 'exchange']
-)
-    ->middleware('throttle:10,1')
-    ->name('auth.google.exchange');
