@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\OrderShipmentController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\RegisterController;
 use App\Http\Controllers\Api\ShippingRateController;
+use App\Http\Controllers\Api\ForgotPasswordController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -20,6 +21,8 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('throttle:5,1')->group(function () {
     Route::post('/auth/register', RegisterController::class)->name('auth.register');
     Route::post('/auth/login', LoginController::class)->name('auth.login');
+    Route::post('/auth/forgot-password', ForgotPasswordController::class)
+        ->name('auth.password.email');
 });
 
 Route::post('/auth/google/exchange', [GoogleAuthController::class, 'exchange'])
