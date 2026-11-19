@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\BiteshipWebhookController;
 use App\Http\Controllers\Api\OrderShipmentController;
 use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\AuthenticatedUserController;
+use App\Http\Controllers\Api\RegisterController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -32,6 +33,13 @@ Route::middleware('auth:sanctum')->group(function () {
         [AuthenticatedUserController::class, 'destroy']
     )->name('auth.logout');
 });
+
+Route::post(
+    '/auth/register',
+    RegisterController::class
+)
+    ->middleware('throttle:5,1')
+    ->name('auth.register');
 
 Route::post(
     '/payments/midtrans/notification',
