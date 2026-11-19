@@ -88,9 +88,19 @@ class BiteshipWebhookService
                 return false;
             }
 
-            $status = isset($payload['status'])
+            $rawStatus = isset($payload['status'])
                 ? trim($payload['status'])
                 : null;
+
+            $normalizedStatus = $rawStatus !== null
+                ? strtolower(str_replace(' ', '', $rawStatus))
+                : null;
+
+            $shipmentStatus = match ($normalizedStatus) {
+                'intransit' => 'inTransit',
+                'returnintransit' => 'returnInTransit',
+                default => $normalizedStatus,
+            };
 
             $location = isset($payload['location'])
                 && trim($payload['location']) !== ''
@@ -102,7 +112,7 @@ class BiteshipWebhookService
                 'uuid' => (string) Str::uuid(),
                 'shipment_id' => $shipment->id,
                 'event_type' => $event,
-                'status' => $status,
+                'status' => $rawStatus,
                 'description' => $this->getDescription($event, $payload),
                 'location' => $location,
                 'occurred_at' => now(),
@@ -137,12 +147,12 @@ class BiteshipWebhookService
             // Simpan status shipment hanya untuk event status.
             if (
                 $event === 'order.status'
-                && $status !== null
-                && $this->isKnownShipmentStatus($status)
+                && $normalizedStatus !== null
+                && $this->isKnownShipmentStatus($normalizedStatus)
             ) {
-                $shipment->status = $status;
+                $shipment->status = $shipmentStatus;
 
-                if (strtolower(trim($status)) === 'delivered') {
+                if ($normalizedStatus === 'delivered') {
                     $shipment->delivered_at ??= now();
                 }
             }
@@ -159,10 +169,10 @@ class BiteshipWebhookService
 
             if (
                 $event === 'order.status'
-                && $status !== null
-                && $this->isKnownShipmentStatus($status)
+                && $normalizedStatus !== null
+                && $this->isKnownShipmentStatus($normalizedStatus)
             ) {
-                $this->syncOrderStatus($order, $status);
+                $this->syncOrderStatus($order, $normalizedStatus);
             }
 
             return true;
@@ -340,19 +350,36 @@ class BiteshipWebhookService
             );
         }
 
-        // Validasi harga pengiriman.
+        // Validasi harga pengiriman harus berupa integer nonnegatif
+        // dan tidak boleh melebihi batas PHP_INT_MAX.
         foreach (['price', 'order_price'] as $field) {
             if (! array_key_exists($field, $payload)) {
                 continue;
             }
 
-            if (
-                ! is_numeric($payload[$field])
-                || ! is_finite((float) $payload[$field])
-                || (float) $payload[$field] < 0
-            ) {
+            $price = $payload[$field];
+
+            $isValidPrice = (
+                is_int($price)
+                && $price >= 0
+            ) || (
+                is_string($price)
+                && preg_match('/^\d+$/', $price) === 1
+                && (
+                    strlen(ltrim($price, '0')) < strlen((string) PHP_INT_MAX)
+                    || (
+                        strlen(ltrim($price, '0')) === strlen((string) PHP_INT_MAX)
+                        && strcmp(
+                            ltrim($price, '0') ?: '0',
+                            (string) PHP_INT_MAX
+                        ) <= 0
+                    )
+                )
+            );
+
+            if (! $isValidPrice) {
                 throw new InvalidArgumentException(
-                    "Field {$field} harus berupa angka positif atau nol."
+                    "Field {$field} harus berupa integer nonnegatif yang valid."
                 );
             }
         }

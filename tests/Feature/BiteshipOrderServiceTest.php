@@ -319,3 +319,379 @@ it('rejects shipment when courier service information is incomplete', function (
         'status' => 'creation_failed',
     ]);
 });
+
+it('recovers existing Biteship order when reference id is duplicated', function () {
+    $order = createBiteshipTestOrder($this);
+
+    Http::fake(function ($request) {
+        if ($request->method() === 'POST') {
+            return Http::response([
+                'success' => false,
+                'code' => 40002060,
+                'message' => 'Reference ID already exists.',
+                'details' => [
+                    'order_id' => 'bite-order-existing-001',
+                ],
+            ], 400);
+        }
+
+        if ($request->method() === 'GET') {
+            return Http::response([
+                'success' => true,
+                'id' => 'bite-order-existing-001',
+                'status' => 'confirmed',
+                'price' => 15000,
+                'courier' => [
+                    'company' => 'jne',
+                    'type' => 'reg',
+                    'tracking_id' => 'bite-tracking-existing-001',
+                    'waybill_id' => 'JNE111222333',
+                    'link' => 'https://tracking.example.test/JNE111222333',
+                ],
+            ], 200);
+        }
+
+        return Http::response([], 404);
+    });
+
+    $shipment = app(BiteshipOrderService::class)
+        ->createForOrder($order->id);
+
+    expect($shipment->provider_order_id)
+        ->toBe('bite-order-existing-001')
+        ->and($shipment->tracking_id)
+        ->toBe('bite-tracking-existing-001')
+        ->and($shipment->status)
+        ->toBe('confirmed');
+
+    $this->assertDatabaseHas('shipments', [
+        'order_id' => $order->id,
+        'provider_order_id' => 'bite-order-existing-001',
+        'status' => 'confirmed',
+    ]);
+
+    Http::assertSentCount(2);
+
+    Http::assertSent(function ($request) {
+        return $request->method() === 'POST'
+            && $request->url() === 'https://api.biteship.com/v1/orders';
+    });
+
+    Http::assertSent(function ($request) {
+        return $request->method() === 'GET'
+            && $request->url() === 'https://api.biteship.com/v1/orders/bite-order-existing-001';
+    });
+});
+
+it('marks shipment as creation failed when Biteship response has no order id', function () {
+    $order = createBiteshipTestOrder($this);
+
+    Http::fake([
+        'api.biteship.com/v1/orders' => Http::response([
+            'success' => true,
+            'status' => 'confirmed',
+            'price' => 15000,
+        ], 200),
+    ]);
+
+    expect(
+        fn() => app(BiteshipOrderService::class)
+            ->createForOrder($order->id)
+    )->toThrow(RuntimeException::class);
+
+    $this->assertDatabaseHas('shipments', [
+        'order_id' => $order->id,
+        'status' => 'creation_failed',
+    ]);
+
+    Http::assertSentCount(1);
+});
+
+it('marks shipment as creation failed when duplicate reference has no order id', function () {
+    $order = createBiteshipTestOrder($this);
+
+    Http::fake([
+        'api.biteship.com/v1/orders' => Http::response([
+            'success' => false,
+            'code' => 40002060,
+            'message' => 'Reference ID already exists.',
+            'details' => [],
+        ], 400),
+    ]);
+
+    expect(
+        fn() => app(BiteshipOrderService::class)
+            ->createForOrder($order->id)
+    )->toThrow(RuntimeException::class);
+
+    $this->assertDatabaseHas('shipments', [
+        'order_id' => $order->id,
+        'status' => 'creation_failed',
+    ]);
+
+    Http::assertSentCount(1);
+});
+
+
+it('marks shipment as creation failed when recovering existing Biteship order fails', function () {
+    $order = createBiteshipTestOrder($this);
+
+    Http::fake(function ($request) {
+        if ($request->method() === 'POST') {
+            return Http::response([
+                'success' => false,
+                'code' => 40002060,
+                'details' => [
+                    'order_id' => 'bite-order-recovery-failed',
+                ],
+            ], 400);
+        }
+
+        if ($request->method() === 'GET') {
+            return Http::response([
+                'success' => false,
+                'message' => 'Temporary server error.',
+            ], 500);
+        }
+
+        return Http::response([], 404);
+    });
+
+    expect(
+        fn() => app(BiteshipOrderService::class)
+            ->createForOrder($order->id)
+    )->toThrow(RuntimeException::class);
+
+    $this->assertDatabaseHas('shipments', [
+        'order_id' => $order->id,
+        'status' => 'creation_failed',
+        'provider_order_id' => null,
+    ]);
+
+    Http::assertSentCount(2);
+});
+
+it('marks shipment as creation failed when recovered Biteship order response is invalid', function () {
+    $order = createBiteshipTestOrder($this);
+
+    Http::fake(function ($request) {
+        if ($request->method() === 'POST') {
+            return Http::response([
+                'success' => false,
+                'code' => 40002060,
+                'details' => [
+                    'order_id' => 'bite-order-invalid-response',
+                ],
+            ], 400);
+        }
+
+        if ($request->method() === 'GET') {
+            return Http::response([
+                'success' => true,
+                'status' => 'confirmed',
+                'price' => 15000,
+            ], 200);
+        }
+
+        return Http::response([], 404);
+    });
+
+    expect(
+        fn() => app(BiteshipOrderService::class)
+            ->createForOrder($order->id)
+    )->toThrow(RuntimeException::class);
+
+    $this->assertDatabaseHas('shipments', [
+        'order_id' => $order->id,
+        'status' => 'creation_failed',
+        'provider_order_id' => null,
+    ]);
+
+    Http::assertSentCount(2);
+});
+
+it('rejects Biteship response with an invalid shipment status', function () {
+    $order = createBiteshipTestOrder($this);
+
+    Http::fake([
+        'api.biteship.com/v1/orders' => Http::response([
+            'success' => true,
+            'id' => 'bite-order-invalid-status',
+            'status' => '',
+            'courier' => [
+                'company' => 'jne',
+                'type' => 'reg',
+            ],
+        ], 200),
+    ]);
+
+    expect(
+        fn() => app(BiteshipOrderService::class)
+            ->createForOrder($order->id)
+    )->toThrow(RuntimeException::class);
+
+    $this->assertDatabaseHas('shipments', [
+        'order_id' => $order->id,
+        'status' => 'creation_failed',
+        'provider_order_id' => null,
+    ]);
+});
+
+it('rejects Biteship response with an invalid tracking URL', function () {
+    $order = createBiteshipTestOrder($this);
+
+    Http::fake([
+        'api.biteship.com/v1/orders' => Http::response([
+            'success' => true,
+            'id' => 'bite-order-invalid-tracking-url',
+            'status' => 'confirmed',
+            'courier' => [
+                'company' => 'jne',
+                'type' => 'reg',
+                'link' => 'not-a-valid-url',
+            ],
+        ], 200),
+    ]);
+
+    expect(
+        fn() => app(BiteshipOrderService::class)
+            ->createForOrder($order->id)
+    )->toThrow(RuntimeException::class);
+
+    $this->assertDatabaseHas('shipments', [
+        'order_id' => $order->id,
+        'status' => 'creation_failed',
+        'provider_order_id' => null,
+    ]);
+});
+
+it('rejects Biteship response with invalid courier field types', function () {
+    $invalidFields = [
+        'company' => 123,
+        'type' => ['reg'],
+        'tracking_id' => false,
+        'waybill_id' => '',
+    ];
+
+    foreach ($invalidFields as $field => $invalidValue) {
+        $order = createBiteshipTestOrder($this);
+
+        Http::fake([
+            'api.biteship.com/v1/orders' => Http::response([
+                'success' => true,
+                'id' => 'bite-order-invalid-' . $field,
+                'status' => 'confirmed',
+                'courier' => [
+                    'company' => 'jne',
+                    'type' => 'reg',
+                    'tracking_id' => 'bite-tracking-valid',
+                    'waybill_id' => 'JNE123456789',
+                    $field => $invalidValue,
+                ],
+            ], 200),
+        ]);
+
+        expect(
+            fn() => app(BiteshipOrderService::class)
+                ->createForOrder($order->id)
+        )->toThrow(RuntimeException::class);
+
+        $this->assertDatabaseHas('shipments', [
+            'order_id' => $order->id,
+            'status' => 'creation_failed',
+            'provider_order_id' => null,
+        ]);
+    }
+});
+
+it('rejects Biteship response when shipping fee exceeds database integer limit', function () {
+    $order = createBiteshipTestOrder($this);
+
+    Http::fake([
+        'api.biteship.com/v1/orders' => Http::response([
+            'success' => true,
+            'id' => 'bite-order-price-overflow',
+            'status' => 'confirmed',
+            'price' => '9223372036854775808',
+            'courier' => [
+                'company' => 'jne',
+                'type' => 'reg',
+            ],
+        ], 200),
+    ]);
+
+    expect(
+        fn() => app(BiteshipOrderService::class)
+            ->createForOrder($order->id)
+    )->toThrow(RuntimeException::class);
+
+    $this->assertDatabaseHas('shipments', [
+        'order_id' => $order->id,
+        'status' => 'creation_failed',
+        'provider_order_id' => null,
+        'actual_shipping_fee' => null,
+    ]);
+
+    Http::assertSentCount(1);
+});
+
+it('accepts maximum valid shipping fee supported by database integer', function () {
+    $order = createBiteshipTestOrder($this);
+
+    Http::fake([
+        'api.biteship.com/v1/orders' => Http::response([
+            'success' => true,
+            'id' => 'bite-order-max-price',
+            'status' => 'confirmed',
+            'price' => (string) PHP_INT_MAX,
+            'courier' => [
+                'company' => 'jne',
+                'type' => 'reg',
+            ],
+        ], 200),
+    ]);
+
+    $shipment = app(BiteshipOrderService::class)
+        ->createForOrder($order->id);
+
+    expect($shipment->actual_shipping_fee)
+        ->toBe(PHP_INT_MAX);
+
+    $this->assertDatabaseHas('shipments', [
+        'order_id' => $order->id,
+        'provider_order_id' => 'bite-order-max-price',
+        'actual_shipping_fee' => PHP_INT_MAX,
+        'status' => 'confirmed',
+    ]);
+
+    Http::assertSentCount(1);
+});
+
+it('rejects Biteship response with an unknown shipment status', function () {
+    $order = createBiteshipTestOrder($this);
+
+    Http::fake([
+        'api.biteship.com/v1/orders' => Http::response([
+            'success' => true,
+            'id' => 'bite-order-unknown-status',
+            'status' => 'unknown_status',
+            'courier' => [
+                'company' => 'jne',
+                'type' => 'reg',
+            ],
+        ], 200),
+    ]);
+
+    expect(
+        fn() => app(BiteshipOrderService::class)
+            ->createForOrder($order->id)
+    )->toThrow(RuntimeException::class);
+
+    $this->assertDatabaseHas('shipments', [
+        'order_id' => $order->id,
+        'status' => 'creation_failed',
+        'provider_order_id' => null,
+    ]);
+
+    Http::assertSentCount(1);
+});

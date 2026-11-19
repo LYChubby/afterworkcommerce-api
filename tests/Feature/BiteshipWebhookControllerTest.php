@@ -688,3 +688,748 @@ test('it does not expose internal shipment provider data in tracking response', 
         ->assertDontSee('PRIVATE-WEBHOOK-PAYLOAD')
         ->assertDontSee('PRIVATE-EVENT-REFERENCE');
 });
+
+it('rejects webhook when shipping price is decimal', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.price',
+        'order_id' => 'bite-order-test-001',
+        'price' => 18000.5,
+    ]);
+
+    $response->assertUnprocessable();
+
+    $this->assertDatabaseCount('shipment_events', 0);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'actual_shipping_fee' => null,
+    ]);
+});
+
+it('rejects webhook when shipping price exceeds PHP_INT_MAX', function () {
+    $price = PHP_INT_MAX . '0';
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.price',
+        'order_id' => 'bite-order-test-001',
+        'price' => $price,
+    ]);
+
+    $response->assertUnprocessable();
+
+    $this->assertDatabaseCount('shipment_events', 0);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'actual_shipping_fee' => null,
+    ]);
+});
+
+it('accepts shipping price equal to PHP_INT_MAX', function () {
+    $price = PHP_INT_MAX;
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.price',
+        'order_id' => 'bite-order-test-001',
+        'price' => $price,
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'actual_shipping_fee' => $price,
+    ]);
+});
+
+it('rejects webhook when order ID contains only whitespace', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => '   ',
+        'status' => 'delivered',
+    ]);
+
+    $response->assertUnprocessable();
+
+    $this->assertDatabaseCount('shipment_events', 0);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'status' => 'confirmed',
+    ]);
+});
+
+it('accepts order_price as an alias for shipping price', function () {
+    $price = 25000;
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.price',
+        'order_id' => 'bite-order-test-001',
+        'order_price' => $price,
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'actual_shipping_fee' => $price,
+    ]);
+});
+
+it('accepts numeric string as shipping price', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.price',
+        'order_id' => 'bite-order-test-001',
+        'order_price' => '25000',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'actual_shipping_fee' => 25000,
+    ]);
+});
+
+it('rejects shipping price webhook when price fields are missing', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.price',
+        'order_id' => 'bite-order-test-001',
+    ]);
+
+    $response->assertUnprocessable();
+
+    $this->assertDatabaseCount('shipment_events', 0);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'actual_shipping_fee' => null,
+    ]);
+});
+
+it('does not duplicate shipment events when shipping price webhook is repeated', function () {
+    $payload = [
+        'event' => 'order.price',
+        'order_id' => 'bite-order-test-001',
+        'price' => 25000,
+    ];
+
+    $headers = [
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ];
+
+    $firstResponse = $this->withHeaders($headers)
+        ->postJson('/api/webhooks/biteship', $payload);
+
+    $firstResponse->assertOk();
+
+    $this->assertDatabaseCount('shipment_events', 1);
+
+    $secondResponse = $this->withHeaders($headers)
+        ->postJson('/api/webhooks/biteship', $payload);
+
+    $secondResponse->assertOk();
+
+    $this->assertDatabaseCount('shipment_events', 1);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'actual_shipping_fee' => 25000,
+    ]);
+});
+
+it('updates shipping fee when a new price webhook is received', function () {
+    $headers = [
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ];
+
+    $firstResponse = $this->withHeaders($headers)
+        ->postJson('/api/webhooks/biteship', [
+            'event' => 'order.price',
+            'order_id' => 'bite-order-test-001',
+            'price' => 25000,
+        ]);
+
+    $firstResponse->assertOk();
+
+    $secondResponse = $this->withHeaders($headers)
+        ->postJson('/api/webhooks/biteship', [
+            'event' => 'order.price',
+            'order_id' => 'bite-order-test-001',
+            'price' => 30000,
+        ]);
+
+    $secondResponse->assertOk();
+
+    $this->assertDatabaseCount('shipment_events', 2);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'actual_shipping_fee' => 30000,
+    ]);
+});
+
+it('does not process webhook when shipment order ID is unknown', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.price',
+        'order_id' => 'unknown-bite-order-999',
+        'price' => 25000,
+    ]);
+
+    $response->assertUnprocessable();
+
+    $this->assertDatabaseCount('shipment_events', 0);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'actual_shipping_fee' => null,
+    ]);
+});
+
+it('records unknown shipment status without changing shipment status', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'unknown_future_status',
+    ]);
+
+    $originalOrderStatus = $this->shipment->order->status;
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $this->assertDatabaseHas('shipment_events', [
+        'shipment_id' => $this->shipment->id,
+        'status' => 'unknown_future_status',
+    ]);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'status' => 'confirmed',
+    ]);
+
+    expect($this->shipment->order->fresh()->status)
+        ->toBe($originalOrderStatus);
+});
+
+it('rejects shipment status containing only whitespace', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => '   ',
+    ]);
+
+    $response->assertUnprocessable();
+
+    $this->assertDatabaseCount('shipment_events', 0);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'status' => 'confirmed',
+    ]);
+});
+
+it('normalizes shipment status before processing webhook', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => ' IN_TRANSIT ',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'status' => 'in_transit',
+    ]);
+});
+
+it('handles return in transit status correctly', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'returnInTransit',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'status' => 'returnInTransit',
+    ]);
+
+    $this->assertDatabaseHas('shipment_events', [
+        'shipment_id' => $this->shipment->id,
+        'status' => 'returnInTransit',
+    ]);
+
+    expect($this->shipment->order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_RETURNED);
+});
+
+it('does not downgrade returned order status from late delivered webhook', function () {
+    $order = $this->shipment->order;
+
+    $order->update([
+        'status' => \App\Models\Order::STATUS_RETURNED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'delivered',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    expect($order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_RETURNED);
+});
+
+it('does not downgrade cancelled order status from late delivered webhook', function () {
+    $order = $this->shipment->order;
+
+    $order->update([
+        'status' => \App\Models\Order::STATUS_CANCELLED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'delivered',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    expect($order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_CANCELLED);
+});
+
+it('does not downgrade expired order status from late delivered webhook', function () {
+    $order = $this->shipment->order;
+
+    $order->update([
+        'status' => \App\Models\Order::STATUS_EXPIRED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'delivered',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    expect($order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_EXPIRED);
+});
+
+it('updates delivered order to returned when return webhook arrives', function () {
+    $order = $this->shipment->order;
+
+    $order->update([
+        'status' => \App\Models\Order::STATUS_DELIVERED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'returned',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    expect($order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_RETURNED);
+});
+
+it('updates shipment and records event when shipment is returned', function () {
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'returned',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'status' => 'returned',
+    ]);
+
+    $this->assertDatabaseHas('shipment_events', [
+        'shipment_id' => $this->shipment->id,
+        'status' => 'returned',
+    ]);
+
+    expect($this->shipment->order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_RETURNED);
+});
+
+it('does not create duplicate shipment events for repeated returned webhook', function () {
+    $payload = [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'returned',
+    ];
+
+    $headers = [
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ];
+
+    $firstResponse = $this->withHeaders($headers)
+        ->postJson('/api/webhooks/biteship', $payload);
+
+    $firstResponse->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $secondResponse = $this->withHeaders($headers)
+        ->postJson('/api/webhooks/biteship', $payload);
+
+    $secondResponse->assertOk()
+        ->assertJson([
+            'processed' => false,
+        ]);
+
+    expect(
+        \App\Models\ShipmentEvent::where(
+            'shipment_id',
+            $this->shipment->id
+        )
+            ->where('status', 'returned')
+            ->count()
+    )->toBe(1);
+
+    expect($this->shipment->order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_RETURNED);
+});
+
+it('preserves returned order status when return in transit webhook arrives', function () {
+    $order = $this->shipment->order;
+
+    $order->update([
+        'status' => \App\Models\Order::STATUS_RETURNED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'returnInTransit',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'status' => 'returnInTransit',
+    ]);
+
+    expect($order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_RETURNED);
+});
+
+it('does not create duplicate events for repeated return in transit webhook', function () {
+    $payload = [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'returnInTransit',
+    ];
+
+    $headers = [
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ];
+
+    $firstResponse = $this->withHeaders($headers)
+        ->postJson('/api/webhooks/biteship', $payload);
+
+    $firstResponse->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $secondResponse = $this->withHeaders($headers)
+        ->postJson('/api/webhooks/biteship', $payload);
+
+    $secondResponse->assertOk()
+        ->assertJson([
+            'processed' => false,
+        ]);
+
+    expect(
+        \App\Models\ShipmentEvent::where(
+            'shipment_id',
+            $this->shipment->id
+        )
+            ->where('status', 'returnInTransit')
+            ->count()
+    )->toBe(1);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'status' => 'returnInTransit',
+    ]);
+
+    expect($this->shipment->order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_RETURNED);
+});
+
+it('preserves returned order status when late in transit webhook arrives', function () {
+    $order = $this->shipment->order;
+
+    $order->update([
+        'status' => \App\Models\Order::STATUS_RETURNED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'in_transit',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    expect($order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_RETURNED);
+});
+
+it('preserves returned order status when late delivered webhook arrives', function () {
+    $order = $this->shipment->order;
+
+    $order->update([
+        'status' => \App\Models\Order::STATUS_RETURNED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'delivered',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    expect($order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_RETURNED);
+});
+
+it('preserves existing delivered timestamp when late delivered webhook arrives', function () {
+    $order = $this->shipment->order;
+
+    $deliveredAt = now()->subDays(2)->startOfSecond();
+
+    $this->shipment->update([
+        'status' => 'returned',
+        'delivered_at' => $deliveredAt,
+    ]);
+
+    $order->update([
+        'status' => \App\Models\Order::STATUS_RETURNED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'delivered',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    expect($this->shipment->fresh()->delivered_at->toDateTimeString())
+        ->toBe($deliveredAt->toDateTimeString());
+
+    expect($order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_RETURNED);
+});
+
+it('preserves cancelled order status when returned webhook arrives', function () {
+    $order = $this->shipment->order;
+
+    $order->update([
+        'status' => \App\Models\Order::STATUS_CANCELLED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'returned',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    expect($order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_CANCELLED);
+});
+
+it('preserves expired order status when returned webhook arrives', function () {
+    $order = $this->shipment->order;
+
+    $order->update([
+        'status' => \App\Models\Order::STATUS_EXPIRED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'returned',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    expect($order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_EXPIRED);
+});
+
+it('preserves cancelled order status when return in transit webhook arrives', function () {
+    $order = $this->shipment->order;
+
+    $order->update([
+        'status' => \App\Models\Order::STATUS_CANCELLED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'returnInTransit',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'status' => 'returnInTransit',
+    ]);
+
+    expect($order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_CANCELLED);
+});
+
+it('preserves expired order status when return in transit webhook arrives', function () {
+    $order = $this->shipment->order;
+
+    $order->update([
+        'status' => \App\Models\Order::STATUS_EXPIRED,
+    ]);
+
+    $response = $this->withHeaders([
+        'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
+    ])->postJson('/api/webhooks/biteship', [
+        'event' => 'order.status',
+        'order_id' => 'bite-order-test-001',
+        'status' => 'returnInTransit',
+    ]);
+
+    $response->assertOk()
+        ->assertJson([
+            'processed' => true,
+        ]);
+
+    $this->assertDatabaseHas('shipments', [
+        'id' => $this->shipment->id,
+        'status' => 'returnInTransit',
+    ]);
+
+    expect($order->fresh()->status)
+        ->toBe(\App\Models\Order::STATUS_EXPIRED);
+});
