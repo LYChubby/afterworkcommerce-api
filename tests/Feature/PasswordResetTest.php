@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use App\Notifications\ResetPasswordNotification;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
@@ -112,4 +113,78 @@ it('rejects reset password with mismatched confirmation', function () {
         'password_confirmation' => 'DifferentPassword123!',
     ])->assertUnprocessable()
         ->assertJsonValidationErrors('password');
+});
+
+it('stores password reset tokens as hashes', function () {
+    $user = User::factory()->create();
+
+    $plainToken = Password::createToken($user);
+
+    $storedToken = DB::table('password_reset_tokens')
+        ->where('email', $user->email)
+        ->value('token');
+
+    expect($storedToken)
+        ->not->toBe($plainToken);
+
+    expect(Hash::check($plainToken, $storedToken))
+        ->toBeTrue();
+});
+
+it('cannot reuse a password reset token', function () {
+    $user = User::factory()->create([
+        'password' => 'OldPassword123!',
+    ]);
+
+    $token = Password::createToken($user);
+
+    $payload = [
+        'email' => $user->email,
+        'token' => $token,
+        'password' => 'NewPassword123!',
+        'password_confirmation' => 'NewPassword123!',
+    ];
+
+    $firstResponse = $this->postJson(
+        '/api/auth/reset-password',
+        $payload
+    );
+
+    $firstResponse->assertOk();
+
+    $secondResponse = $this->postJson(
+        '/api/auth/reset-password',
+        $payload
+    );
+
+    $secondResponse->assertUnprocessable();
+
+    expect(Hash::check(
+        'NewPassword123!',
+        $user->fresh()->password
+    ))->toBeTrue();
+});
+
+
+it('rejects previous access tokens after password reset', function () {
+    $user = User::factory()->create([
+        'password' => 'OldPassword123!',
+    ]);
+
+    $accessToken = $user->createToken('old-session');
+
+    $resetToken = Password::createToken($user);
+
+    $response = $this->postJson('/api/auth/reset-password', [
+        'email' => $user->email,
+        'token' => $resetToken,
+        'password' => 'NewPassword123!',
+        'password_confirmation' => 'NewPassword123!',
+    ]);
+
+    $response->assertOk();
+
+    $this->withToken($accessToken->plainTextToken)
+        ->getJson('/api/auth/me')
+        ->assertUnauthorized();
 });
