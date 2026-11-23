@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AdminCategoryController;
 use App\Http\Controllers\Api\AdminProductController;
+use App\Http\Controllers\Api\AdminProductVariantController;
 use App\Http\Controllers\Api\AuthenticatedUserController;
 use App\Http\Controllers\Api\BiteshipWebhookController;
 use App\Http\Controllers\Api\CategoryController;
@@ -89,6 +90,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
             Route::apiResource('products', AdminProductController::class)
                 ->parameters(['products' => 'uuid']);
+
+            Route::apiResource(
+                'products.variants',
+                AdminProductVariantController::class
+            )->parameters([
+                'products' => 'product',
+                'variants' => 'variant',
+            ]);
         });
 });
 
