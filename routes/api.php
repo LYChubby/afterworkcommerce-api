@@ -11,6 +11,9 @@ use App\Http\Controllers\Api\RegisterController;
 use App\Http\Controllers\Api\ShippingRateController;
 use App\Http\Controllers\Api\ForgotPasswordController;
 use App\Http\Controllers\Api\ResetPasswordController;
+use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\AdminCategoryController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -31,6 +34,21 @@ Route::middleware('throttle:5,1')->group(function () {
 Route::post('/auth/google/exchange', [GoogleAuthController::class, 'exchange'])
     ->middleware('throttle:10,1')
     ->name('auth.google.exchange');
+
+/*
+|--------------------------------------------------------------------------
+| Product Catalog Routes (Public)
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/products', [ProductController::class, 'index'])
+    ->name('products.index');
+
+Route::get('/products/{slug}', [ProductController::class, 'show'])
+    ->name('products.show');
+
+Route::get('/categories', [CategoryController::class, 'index'])
+    ->name('categories.index');
 
 /*
 |--------------------------------------------------------------------------
@@ -55,6 +73,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/shipping/rates', ShippingRateController::class)
         ->middleware('throttle:10,1')
         ->name('shipping.rates');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Admin Routes
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('admin')
+        ->middleware('admin')
+        ->group(function () {
+            Route::apiResource(
+                'categories',
+                AdminCategoryController::class
+            )->parameters([
+                'categories' => 'uuid',
+            ]);
+        });
 });
 
 /*
