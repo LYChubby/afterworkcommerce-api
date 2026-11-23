@@ -4,9 +4,8 @@ use App\Models\OAuthLoginCode;
 use App\Models\SocialAccount;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\RedirectResponse;
-use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Contracts\Provider;
+use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as GoogleUser;
 
 uses(RefreshDatabase::class);
@@ -16,7 +15,7 @@ function makeGoogleSocialiteUser(
     string $email = 'google@example.com',
     bool $verified = true
 ): GoogleUser {
-    $user = new GoogleUser();
+    $user = new GoogleUser;
 
     $user->id = $id;
     $user->name = 'Google Test User';

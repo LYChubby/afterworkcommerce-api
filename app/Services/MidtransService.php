@@ -36,7 +36,7 @@ class MidtransService
             }
 
             if (
-                !$order->payment_deadline_at ||
+                ! $order->payment_deadline_at ||
                 $order->payment_deadline_at->isPast()
             ) {
                 throw new RuntimeException(
@@ -59,8 +59,8 @@ class MidtransService
             $this->configureMidtrans();
 
             $providerOrderId = $order->order_number
-                . '-P-'
-                . Str::upper(Str::random(6));
+                .'-P-'
+                .Str::upper(Str::random(6));
 
             $grossAmount = (int) round(
                 (float) $order->grand_total
@@ -75,8 +75,7 @@ class MidtransService
             $itemDetails = $this->buildItemDetails($order);
 
             $itemDetailsTotal = collect($itemDetails)->sum(
-                fn(array $item) =>
-                $item['price'] * $item['quantity']
+                fn (array $item) => $item['price'] * $item['quantity']
             );
 
             if ($itemDetailsTotal !== $grossAmount) {
@@ -136,7 +135,7 @@ class MidtransService
     {
         $serverKey = config('midtrans.server_key');
 
-        if (!$serverKey) {
+        if (! $serverKey) {
             throw new RuntimeException(
                 'Midtrans Server Key belum dikonfigurasi.'
             );
@@ -176,10 +175,10 @@ class MidtransService
                 'quantity' => $orderItem->quantity,
                 'name' => Str::limit(
                     $orderItem->product_name
-                        . ' - '
-                        . $orderItem->size_name
-                        . ' - '
-                        . $orderItem->color_name,
+                        .' - '
+                        .$orderItem->size_name
+                        .' - '
+                        .$orderItem->color_name,
                     50,
                     ''
                 ),

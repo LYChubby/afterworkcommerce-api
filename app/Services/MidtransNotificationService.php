@@ -2,10 +2,9 @@
 
 namespace App\Services;
 
+use App\Jobs\CreateBiteshipShipmentJob;
 use App\Models\Order;
 use App\Models\Payment;
-use App\Jobs\CreateBiteshipShipmentJob;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use RuntimeException;
@@ -115,8 +114,8 @@ class MidtransNotificationService
 
         foreach ($requiredFields as $field) {
             if (
-                !isset($payload[$field]) ||
-                !is_scalar($payload[$field]) ||
+                ! isset($payload[$field]) ||
+                ! is_scalar($payload[$field]) ||
                 trim((string) $payload[$field]) === ''
             ) {
                 throw new InvalidArgumentException(
@@ -125,7 +124,7 @@ class MidtransNotificationService
             }
         }
 
-        if (!is_numeric($payload['gross_amount'])) {
+        if (! is_numeric($payload['gross_amount'])) {
             throw new InvalidArgumentException(
                 'Nominal pembayaran tidak valid.'
             );
@@ -145,16 +144,16 @@ class MidtransNotificationService
     {
         $serverKey = config('midtrans.server_key');
 
-        if (!$serverKey) {
+        if (! $serverKey) {
             throw new RuntimeException(
                 'Midtrans Server Key belum dikonfigurasi.'
             );
         }
 
         $signatureInput =
-            $payload['order_id'] .
-            $payload['status_code'] .
-            $payload['gross_amount'] .
+            $payload['order_id'].
+            $payload['status_code'].
+            $payload['gross_amount'].
             $serverKey;
 
         $expectedSignature = hash(
@@ -162,7 +161,7 @@ class MidtransNotificationService
             $signatureInput
         );
 
-        if (!hash_equals(
+        if (! hash_equals(
             $expectedSignature,
             (string) $payload['signature_key']
         )) {
@@ -211,7 +210,7 @@ class MidtransNotificationService
         );
 
         $fraudAccepted =
-            !array_key_exists('fraud_status', $payload) ||
+            ! array_key_exists('fraud_status', $payload) ||
             $fraudStatus === 'accept';
 
         return $isSuccessStatus
@@ -236,7 +235,7 @@ class MidtransNotificationService
         if (
             $order->status !== 'pending' ||
             $order->payment_status !== 'pending' ||
-            !$order->payment_deadline_at ||
+            ! $order->payment_deadline_at ||
             $order->payment_deadline_at->isPast()
         ) {
             $payment->status = 'paid_late';

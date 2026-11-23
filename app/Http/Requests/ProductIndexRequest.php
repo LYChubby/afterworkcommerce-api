@@ -67,44 +67,31 @@ class ProductIndexRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'search.max' =>
-            'Pencarian maksimal 100 karakter.',
+            'search.max' => 'Pencarian maksimal 100 karakter.',
 
-            'min_price.numeric' =>
-            'Harga minimum harus berupa angka.',
+            'min_price.numeric' => 'Harga minimum harus berupa angka.',
 
-            'min_price.min' =>
-            'Harga minimum tidak boleh negatif.',
+            'min_price.min' => 'Harga minimum tidak boleh negatif.',
 
-            'max_price.numeric' =>
-            'Harga maksimum harus berupa angka.',
+            'max_price.numeric' => 'Harga maksimum harus berupa angka.',
 
-            'max_price.min' =>
-            'Harga maksimum tidak boleh negatif.',
+            'max_price.min' => 'Harga maksimum tidak boleh negatif.',
 
-            'max_price.gte' =>
-            'Harga maksimum harus lebih besar atau sama dengan harga minimum.',
+            'max_price.gte' => 'Harga maksimum harus lebih besar atau sama dengan harga minimum.',
 
-            'availability.in' =>
-            'Filter ketersediaan produk tidak valid.',
+            'availability.in' => 'Filter ketersediaan produk tidak valid.',
 
-            'sort.in' =>
-            'Pilihan pengurutan produk tidak valid.',
+            'sort.in' => 'Pilihan pengurutan produk tidak valid.',
 
-            'per_page.integer' =>
-            'Jumlah produk per halaman harus berupa bilangan bulat.',
+            'per_page.integer' => 'Jumlah produk per halaman harus berupa bilangan bulat.',
 
-            'per_page.min' =>
-            'Jumlah produk per halaman minimal 1.',
+            'per_page.min' => 'Jumlah produk per halaman minimal 1.',
 
-            'per_page.max' =>
-            'Jumlah produk per halaman maksimal 50.',
+            'per_page.max' => 'Jumlah produk per halaman maksimal 50.',
 
-            'page.integer' =>
-            'Nomor halaman harus berupa bilangan bulat.',
+            'page.integer' => 'Nomor halaman harus berupa bilangan bulat.',
 
-            'page.min' =>
-            'Nomor halaman minimal 1.',
+            'page.min' => 'Nomor halaman minimal 1.',
         ];
     }
 }

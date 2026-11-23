@@ -57,7 +57,7 @@ return new class extends Migration
             );
         });
 
-        DB::statement("
+        DB::statement('
             ALTER TABLE order_items
             ADD CONSTRAINT order_items_amounts_check
             CHECK (
@@ -67,7 +67,7 @@ return new class extends Migration
                 AND quantity > 0
                 AND line_total = (unit_price - unit_discount) * quantity
             )
-        ");
+        ');
     }
 
     public function down(): void

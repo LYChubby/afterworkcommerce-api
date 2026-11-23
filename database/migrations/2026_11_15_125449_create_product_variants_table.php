@@ -3,8 +3,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -45,13 +45,13 @@ return new class extends Migration
         });
 
         // Stok tidak boleh negatif.
-        DB::statement("
+        DB::statement('
             ALTER TABLE product_variants
             ADD CONSTRAINT product_variants_stock_check
             CHECK (
                 stock_reserved <= stock_on_hand
             )
-        ");
+        ');
     }
 
     public function down(): void

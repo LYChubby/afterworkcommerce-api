@@ -139,7 +139,7 @@ it('rejects destination postal code with invalid format', function () {
     Http::fake();
 
     expect(
-        fn() => app(BiteshipService::class)->getRates(
+        fn () => app(BiteshipService::class)->getRates(
             ['postal_code' => '123'],
             [
                 [
@@ -161,7 +161,7 @@ it('rejects products without weight', function () {
     Http::fake();
 
     expect(
-        fn() => app(BiteshipService::class)->getRates(
+        fn () => app(BiteshipService::class)->getRates(
             ['postal_code' => '40115'],
             [
                 [

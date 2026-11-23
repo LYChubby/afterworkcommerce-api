@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Order;
 use App\Models\Shipment;
 use App\Models\ShipmentEvent;
-use App\Models\Order;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -227,7 +227,6 @@ class BiteshipWebhookService
         };
     }
 
-
     private function syncOrderStatus(
         Order $order,
         string $shipmentStatus
@@ -235,8 +234,7 @@ class BiteshipWebhookService
         $normalizedStatus = strtolower(trim($shipmentStatus));
 
         $targetStatus = match ($normalizedStatus) {
-            'confirmed', 'scheduled', 'allocated' =>
-            Order::STATUS_PROCESSING,
+            'confirmed', 'scheduled', 'allocated' => Order::STATUS_PROCESSING,
 
             'picking_up',
             'pickingup',
@@ -244,16 +242,13 @@ class BiteshipWebhookService
             'in_transit',
             'intransit',
             'dropping_off',
-            'droppingoff' =>
-            Order::STATUS_SHIPPED,
+            'droppingoff' => Order::STATUS_SHIPPED,
 
-            'delivered' =>
-            Order::STATUS_DELIVERED,
+            'delivered' => Order::STATUS_DELIVERED,
 
             'return_in_transit',
             'returnintransit',
-            'returned' =>
-            Order::STATUS_RETURNED,
+            'returned' => Order::STATUS_RETURNED,
 
             default => null,
         };
@@ -297,7 +292,6 @@ class BiteshipWebhookService
         $order->save();
     }
 
-
     private function normalizePayloadForHash(array $payload): array
     {
         ksort($payload);
@@ -310,7 +304,6 @@ class BiteshipWebhookService
 
         return $payload;
     }
-
 
     private function validatePayload(string $event, array $payload): void
     {

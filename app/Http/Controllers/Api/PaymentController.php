@@ -20,7 +20,7 @@ class PaymentController extends Controller
     ): JsonResponse {
         $user = $request->user();
 
-        if (!$user instanceof User) {
+        if (! $user instanceof User) {
             return ApiResponse::error(
                 message: 'Unauthenticated.',
                 status: 401,

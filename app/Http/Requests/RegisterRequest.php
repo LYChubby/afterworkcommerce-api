@@ -45,23 +45,17 @@ class RegisterRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' =>
-            'Nama wajib diisi.',
+            'name.required' => 'Nama wajib diisi.',
 
-            'email.required' =>
-            'Email wajib diisi.',
+            'email.required' => 'Email wajib diisi.',
 
-            'email.email' =>
-            'Format email tidak valid.',
+            'email.email' => 'Format email tidak valid.',
 
-            'email.unique' =>
-            'Email sudah terdaftar.',
+            'email.unique' => 'Email sudah terdaftar.',
 
-            'password.required' =>
-            'Password wajib diisi.',
+            'password.required' => 'Password wajib diisi.',
 
-            'password.confirmed' =>
-            'Konfirmasi password tidak cocok.',
+            'password.confirmed' => 'Konfirmasi password tidak cocok.',
         ];
     }
 }

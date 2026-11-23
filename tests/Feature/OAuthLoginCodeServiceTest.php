@@ -37,7 +37,7 @@ it('does not allow an OAuth login code to be used twice', function () {
 
     $service->exchange($code);
 
-    expect(fn() => $service->exchange($code))
+    expect(fn () => $service->exchange($code))
         ->toThrow(RuntimeException::class);
 
     expect($user->tokens()->count())->toBe(1);
@@ -56,7 +56,7 @@ it('rejects an expired OAuth login code', function () {
 
     $service = app(OAuthLoginCodeService::class);
 
-    expect(fn() => $service->exchange($code))
+    expect(fn () => $service->exchange($code))
         ->toThrow(RuntimeException::class);
 
     expect($user->tokens()->count())->toBe(0);
@@ -67,7 +67,7 @@ it('rejects an invalid OAuth login code', function () {
 
     $service = app(OAuthLoginCodeService::class);
 
-    expect(fn() => $service->exchange('invalid-code'))
+    expect(fn () => $service->exchange('invalid-code'))
         ->toThrow(RuntimeException::class);
 
     expect($user->tokens()->count())->toBe(0);
@@ -84,7 +84,7 @@ it('does not create an additional token for an already consumed code', function 
 
     $tokenCountBefore = $user->tokens()->count();
 
-    expect(fn() => $service->exchange($code))
+    expect(fn () => $service->exchange($code))
         ->toThrow(RuntimeException::class);
 
     expect($user->tokens()->count())->toBe($tokenCountBefore);

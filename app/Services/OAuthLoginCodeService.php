@@ -63,7 +63,7 @@ class OAuthLoginCodeService
                 'consumed_at' => now(),
             ])->save();
 
-            $tokenName = 'google-oauth-' . Str::uuid();
+            $tokenName = 'google-oauth-'.Str::uuid();
 
             return $loginCode->user->createToken($tokenName);
         });

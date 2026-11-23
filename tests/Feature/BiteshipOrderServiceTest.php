@@ -262,7 +262,7 @@ it('rejects shipment creation when order is not paid', function () {
     Http::fake();
 
     expect(
-        fn() => app(BiteshipOrderService::class)
+        fn () => app(BiteshipOrderService::class)
             ->createForOrder($order->id)
     )->toThrow(RuntimeException::class);
 
@@ -282,7 +282,7 @@ it('marks shipment as creation failed when Biteship API fails', function () {
     ]);
 
     expect(
-        fn() => app(BiteshipOrderService::class)
+        fn () => app(BiteshipOrderService::class)
             ->createForOrder($order->id)
     )->toThrow(RuntimeException::class);
 
@@ -308,7 +308,7 @@ it('rejects shipment when courier service information is incomplete', function (
     Http::fake();
 
     expect(
-        fn() => app(BiteshipOrderService::class)
+        fn () => app(BiteshipOrderService::class)
             ->createForOrder($order->id)
     )->toThrow(RuntimeException::class);
 
@@ -395,7 +395,7 @@ it('marks shipment as creation failed when Biteship response has no order id', f
     ]);
 
     expect(
-        fn() => app(BiteshipOrderService::class)
+        fn () => app(BiteshipOrderService::class)
             ->createForOrder($order->id)
     )->toThrow(RuntimeException::class);
 
@@ -420,7 +420,7 @@ it('marks shipment as creation failed when duplicate reference has no order id',
     ]);
 
     expect(
-        fn() => app(BiteshipOrderService::class)
+        fn () => app(BiteshipOrderService::class)
             ->createForOrder($order->id)
     )->toThrow(RuntimeException::class);
 
@@ -431,7 +431,6 @@ it('marks shipment as creation failed when duplicate reference has no order id',
 
     Http::assertSentCount(1);
 });
-
 
 it('marks shipment as creation failed when recovering existing Biteship order fails', function () {
     $order = createBiteshipTestOrder($this);
@@ -458,7 +457,7 @@ it('marks shipment as creation failed when recovering existing Biteship order fa
     });
 
     expect(
-        fn() => app(BiteshipOrderService::class)
+        fn () => app(BiteshipOrderService::class)
             ->createForOrder($order->id)
     )->toThrow(RuntimeException::class);
 
@@ -497,7 +496,7 @@ it('marks shipment as creation failed when recovered Biteship order response is 
     });
 
     expect(
-        fn() => app(BiteshipOrderService::class)
+        fn () => app(BiteshipOrderService::class)
             ->createForOrder($order->id)
     )->toThrow(RuntimeException::class);
 
@@ -526,7 +525,7 @@ it('rejects Biteship response with an invalid shipment status', function () {
     ]);
 
     expect(
-        fn() => app(BiteshipOrderService::class)
+        fn () => app(BiteshipOrderService::class)
             ->createForOrder($order->id)
     )->toThrow(RuntimeException::class);
 
@@ -554,7 +553,7 @@ it('rejects Biteship response with an invalid tracking URL', function () {
     ]);
 
     expect(
-        fn() => app(BiteshipOrderService::class)
+        fn () => app(BiteshipOrderService::class)
             ->createForOrder($order->id)
     )->toThrow(RuntimeException::class);
 
@@ -579,7 +578,7 @@ it('rejects Biteship response with invalid courier field types', function () {
         Http::fake([
             'api.biteship.com/v1/orders' => Http::response([
                 'success' => true,
-                'id' => 'bite-order-invalid-' . $field,
+                'id' => 'bite-order-invalid-'.$field,
                 'status' => 'confirmed',
                 'courier' => [
                     'company' => 'jne',
@@ -592,7 +591,7 @@ it('rejects Biteship response with invalid courier field types', function () {
         ]);
 
         expect(
-            fn() => app(BiteshipOrderService::class)
+            fn () => app(BiteshipOrderService::class)
                 ->createForOrder($order->id)
         )->toThrow(RuntimeException::class);
 
@@ -621,7 +620,7 @@ it('rejects Biteship response when shipping fee exceeds database integer limit',
     ]);
 
     expect(
-        fn() => app(BiteshipOrderService::class)
+        fn () => app(BiteshipOrderService::class)
             ->createForOrder($order->id)
     )->toThrow(RuntimeException::class);
 
@@ -683,7 +682,7 @@ it('rejects Biteship response with an unknown shipment status', function () {
     ]);
 
     expect(
-        fn() => app(BiteshipOrderService::class)
+        fn () => app(BiteshipOrderService::class)
             ->createForOrder($order->id)
     )->toThrow(RuntimeException::class);
 

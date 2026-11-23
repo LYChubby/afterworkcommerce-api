@@ -111,7 +111,7 @@ class OrderCancellationService
             }
 
             if (
-                !$order->payment_deadline_at ||
+                ! $order->payment_deadline_at ||
                 $order->payment_deadline_at->isFuture()
             ) {
                 throw new RuntimeException(

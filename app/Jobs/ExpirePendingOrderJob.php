@@ -30,10 +30,10 @@ class ExpirePendingOrderJob implements ShouldQueue
 
         // Pesanan tidak ditemukan atau sudah tidak perlu kedaluwarsa.
         if (
-            !$order ||
+            ! $order ||
             $order->status !== 'pending' ||
             $order->payment_status !== 'pending' ||
-            !$order->payment_deadline_at ||
+            ! $order->payment_deadline_at ||
             $order->payment_deadline_at->isFuture()
         ) {
             return;
@@ -47,10 +47,10 @@ class ExpirePendingOrderJob implements ShouldQueue
             $currentOrder = Order::query()->find($this->orderId);
 
             if (
-                !$currentOrder ||
+                ! $currentOrder ||
                 $currentOrder->status !== 'pending' ||
                 $currentOrder->payment_status !== 'pending' ||
-                !$currentOrder->payment_deadline_at ||
+                ! $currentOrder->payment_deadline_at ||
                 $currentOrder->payment_deadline_at->isFuture()
             ) {
                 return;

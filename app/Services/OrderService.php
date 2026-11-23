@@ -2,16 +2,15 @@
 
 namespace App\Services;
 
-use App\Models\Address;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\ProductVariant;
+use App\Models\ShippingQuote;
 use App\Models\User;
 use App\Models\Warehouse;
-use App\Models\ShippingQuote;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 
 class OrderService
@@ -87,7 +86,7 @@ class OrderService
 
             foreach ($requiredAddressFields as $field) {
                 if (
-                    !isset($addressSnapshot[$field]) ||
+                    ! isset($addressSnapshot[$field]) ||
                     trim((string) $addressSnapshot[$field]) === ''
                 ) {
                     throw new RuntimeException(
@@ -155,7 +154,7 @@ class OrderService
             }
 
             $quoteItems = collect($shippingQuote->items_snapshot)
-                ->map(fn($item) => [
+                ->map(fn ($item) => [
                     'variant_id' => (int) ($item['variant_id'] ?? 0),
                     'quantity' => (int) ($item['quantity'] ?? 0),
                 ])
@@ -206,7 +205,7 @@ class OrderService
                     ->with(['product', 'size', 'color'])
                     ->findOrFail($variantId);
 
-                if (!$variant->is_active) {
+                if (! $variant->is_active) {
                     throw new RuntimeException(
                         'Salah satu varian produk tidak aktif.'
                     );
@@ -214,17 +213,17 @@ class OrderService
 
                 $product = $variant->product;
 
-                if (!$product || !$product->is_active) {
+                if (! $product || ! $product->is_active) {
                     throw new RuntimeException(
                         'Salah satu produk tidak tersedia.'
                     );
                 }
 
                 if (
-                    !$variant->size ||
-                    !$variant->color ||
-                    !$variant->size->is_active ||
-                    !$variant->color->is_active
+                    ! $variant->size ||
+                    ! $variant->color ||
+                    ! $variant->size->is_active ||
+                    ! $variant->color->is_active
                 ) {
                     throw new RuntimeException(
                         'Informasi ukuran atau warna produk tidak tersedia.'
@@ -357,14 +356,14 @@ class OrderService
     protected function generateOrderNumber(): string
     {
         do {
-            $orderNumber = 'ATL-' .
-                now()->format('Ymd') .
-                '-' .
+            $orderNumber = 'ATL-'.
+                now()->format('Ymd').
+                '-'.
                 Str::upper(Str::random(8));
         } while (
             Order::query()
-            ->where('order_number', $orderNumber)
-            ->exists()
+                ->where('order_number', $orderNumber)
+                ->exists()
         );
 
         return $orderNumber;
@@ -395,7 +394,7 @@ class OrderService
         ksort($normalized);
 
         return collect($normalized)
-            ->map(fn($quantity, $variantId) => [
+            ->map(fn ($quantity, $variantId) => [
                 'variant_id' => (int) $variantId,
                 'quantity' => (int) $quantity,
             ])

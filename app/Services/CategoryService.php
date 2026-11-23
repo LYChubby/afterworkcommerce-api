@@ -67,7 +67,6 @@ class CategoryService
         return $category->refresh()->loadCount('products');
     }
 
-
     /**
      * Menghapus kategori jika belum memiliki produk.
      */
@@ -102,14 +101,14 @@ class CategoryService
 
         while (
             Category::query()
-            ->where('slug', $slug)
-            ->when(
-                $ignoreId !== null,
-                fn($query) => $query->where('id', '!=', $ignoreId)
-            )
-            ->exists()
+                ->where('slug', $slug)
+                ->when(
+                    $ignoreId !== null,
+                    fn ($query) => $query->where('id', '!=', $ignoreId)
+                )
+                ->exists()
         ) {
-            $slug = $baseSlug . '-' . $counter;
+            $slug = $baseSlug.'-'.$counter;
             $counter++;
         }
 

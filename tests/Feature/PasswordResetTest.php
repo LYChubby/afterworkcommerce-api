@@ -2,8 +2,8 @@
 
 use App\Models\User;
 use App\Notifications\ResetPasswordNotification;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Password;
@@ -164,7 +164,6 @@ it('cannot reuse a password reset token', function () {
         $user->fresh()->password
     ))->toBeTrue();
 });
-
 
 it('rejects previous access tokens after password reset', function () {
     $user = User::factory()->create([

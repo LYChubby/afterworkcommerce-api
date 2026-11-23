@@ -16,6 +16,7 @@ use App\Models\Warehouse;
 use App\Services\OrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
 
@@ -198,7 +199,7 @@ test('order service rolls back everything when stock is insufficient', function 
         15000
     );
 
-    expect(fn() => app(OrderService::class)->createPendingOrder(
+    expect(fn () => app(OrderService::class)->createPendingOrder(
         user: $this->user,
         items: $items,
         shippingAddressSnapshot: $this->shippingAddress,
@@ -286,13 +287,13 @@ test('order service rejects another users shipping quote', function () {
         $this->shippingAddress['postal_code']
     );
 
-    expect(fn() => app(OrderService::class)->createPendingOrder(
+    expect(fn () => app(OrderService::class)->createPendingOrder(
         user: $this->user,
         items: $items,
         shippingAddressSnapshot: $this->shippingAddress,
         shippingQuoteUuid: $quote->uuid,
     ))->toThrow(
-        Illuminate\Validation\ValidationException::class
+        ValidationException::class
     );
 
     expect(Order::count())->toBe(0);
@@ -323,13 +324,13 @@ test('order service rejects expired shipping quote', function () {
         'expires_at' => now()->subMinute(),
     ]);
 
-    expect(fn() => app(OrderService::class)->createPendingOrder(
+    expect(fn () => app(OrderService::class)->createPendingOrder(
         user: $this->user,
         items: $items,
         shippingAddressSnapshot: $this->shippingAddress,
         shippingQuoteUuid: $quote->uuid,
     ))->toThrow(
-        Illuminate\Validation\ValidationException::class
+        ValidationException::class
     );
 
     expect(Order::count())->toBe(0);
@@ -363,13 +364,13 @@ test('order service prevents reusing a shipping quote', function () {
         shippingQuoteUuid: $quote->uuid,
     );
 
-    expect(fn() => app(OrderService::class)->createPendingOrder(
+    expect(fn () => app(OrderService::class)->createPendingOrder(
         user: $this->user,
         items: $items,
         shippingAddressSnapshot: $this->shippingAddress,
         shippingQuoteUuid: $quote->uuid,
     ))->toThrow(
-        Illuminate\Validation\ValidationException::class
+        ValidationException::class
     );
 
     expect(Order::count())->toBe(1);
@@ -404,7 +405,7 @@ function createOrderShippingQuoteForTest(
     ksort($normalized);
 
     $normalizedItems = collect($normalized)
-        ->map(fn($quantity, $id) => [
+        ->map(fn ($quantity, $id) => [
             'variant_id' => (int) $id,
             'quantity' => $quantity,
         ])

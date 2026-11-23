@@ -45,23 +45,17 @@ class ShippingRateRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'postal_code.required' =>
-            'Kode pos tujuan wajib diisi.',
+            'postal_code.required' => 'Kode pos tujuan wajib diisi.',
 
-            'postal_code.regex' =>
-            'Kode pos harus terdiri dari 5 digit.',
+            'postal_code.regex' => 'Kode pos harus terdiri dari 5 digit.',
 
-            'items.required' =>
-            'Daftar produk wajib diisi.',
+            'items.required' => 'Daftar produk wajib diisi.',
 
-            'items.min' =>
-            'Keranjang belanja tidak boleh kosong.',
+            'items.min' => 'Keranjang belanja tidak boleh kosong.',
 
-            'items.*.variant_id.required' =>
-            'Variasi produk wajib dipilih.',
+            'items.*.variant_id.required' => 'Variasi produk wajib dipilih.',
 
-            'items.*.quantity.min' =>
-            'Jumlah produk minimal 1.',
+            'items.*.quantity.min' => 'Jumlah produk minimal 1.',
         ];
     }
 }

@@ -3,8 +3,8 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
@@ -35,13 +35,13 @@ return new class extends Migration
 
         // Harga harus lebih dari 0.
         // Harga diskon harus lebih dari 0 dan lebih rendah dari harga normal.
-        DB::statement("
+        DB::statement('
             ALTER TABLE products
             ADD CONSTRAINT products_price_check
             CHECK (price > 0)
-        ");
+        ');
 
-        DB::statement("
+        DB::statement('
             ALTER TABLE products
             ADD CONSTRAINT products_discount_price_check
             CHECK (
@@ -51,7 +51,7 @@ return new class extends Migration
                     AND discount_price < price
                 )
             )
-        ");
+        ');
     }
 
     public function down(): void

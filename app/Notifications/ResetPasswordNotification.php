@@ -26,7 +26,7 @@ class ResetPasswordNotification extends Notification
             '/'
         );
 
-        $resetUrl = $frontendUrl . '/reset-password?' . http_build_query([
+        $resetUrl = $frontendUrl.'/reset-password?'.http_build_query([
             'token' => $this->token,
             'email' => $notifiable->getEmailForPasswordReset(),
         ]);

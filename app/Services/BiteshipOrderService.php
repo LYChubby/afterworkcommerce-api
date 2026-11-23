@@ -48,7 +48,7 @@ class BiteshipOrderService
             $courierCode = $courierSnapshot['courier_code'] ?? null;
             $serviceCode = $courierSnapshot['courier_service_code'] ?? null;
 
-            if (!is_string($courierCode) || trim($courierCode) === '') {
+            if (! is_string($courierCode) || trim($courierCode) === '') {
                 throw new RuntimeException(
                     'Informasi kurir tidak lengkap.'
                 );
@@ -87,13 +87,13 @@ class BiteshipOrderService
 
             // Recover an order that Biteship created in an earlier request.
             if (
-                !$response->successful()
+                ! $response->successful()
                 && (int) $response->json('code') === 40002060
             ) {
                 $providerOrderId = $response->json('details.order_id');
 
                 if (
-                    !is_string($providerOrderId)
+                    ! is_string($providerOrderId)
                     || trim($providerOrderId) === ''
                 ) {
                     throw new RuntimeException(
@@ -111,7 +111,7 @@ class BiteshipOrderService
             // Never overwrite a shipment that already has a provider order ID.
             $shipment->refresh();
 
-            if (!$shipment->provider_order_id) {
+            if (! $shipment->provider_order_id) {
                 $shipment->update([
                     'status' => 'creation_failed',
                 ]);
@@ -126,7 +126,7 @@ class BiteshipOrderService
         return Http::withHeaders($this->headers())
             ->timeout(config('biteship.timeout', 20))
             ->post(
-                $this->baseUrl() . '/orders',
+                $this->baseUrl().'/orders',
                 $payload
             );
     }
@@ -136,7 +136,7 @@ class BiteshipOrderService
         return Http::withHeaders($this->headers())
             ->timeout(config('biteship.timeout', 20))
             ->get(
-                $this->baseUrl() . '/orders/' . rawurlencode($providerOrderId)
+                $this->baseUrl().'/orders/'.rawurlencode($providerOrderId)
             );
     }
 
@@ -144,7 +144,7 @@ class BiteshipOrderService
     {
         $apiKey = config('biteship.api_key');
 
-        if (!is_string($apiKey) || trim($apiKey) === '') {
+        if (! is_string($apiKey) || trim($apiKey) === '') {
             throw new RuntimeException(
                 'Konfigurasi API key Biteship belum tersedia.'
             );
@@ -160,7 +160,7 @@ class BiteshipOrderService
     {
         $baseUrl = config('biteship.base_url');
 
-        if (!is_string($baseUrl) || trim($baseUrl) === '') {
+        if (! is_string($baseUrl) || trim($baseUrl) === '') {
             throw new RuntimeException(
                 'Konfigurasi base URL Biteship belum tersedia.'
             );
@@ -180,9 +180,9 @@ class BiteshipOrderService
         $courierType = $courier['courier_service_code'] ?? null;
 
         if (
-            !is_string($courierCompany)
+            ! is_string($courierCompany)
             || trim($courierCompany) === ''
-            || !is_string($courierType)
+            || ! is_string($courierType)
             || trim($courierType) === ''
         ) {
             throw new RuntimeException(
@@ -205,7 +205,7 @@ class BiteshipOrderService
         foreach ($order->items as $orderItem) {
             $variant = $orderItem->productVariant;
 
-            if (!$variant || !$variant->product) {
+            if (! $variant || ! $variant->product) {
                 throw new RuntimeException(
                     'Data produk untuk salah satu item order tidak ditemukan.'
                 );
@@ -214,7 +214,7 @@ class BiteshipOrderService
             $product = $variant->product;
 
             if (
-                !is_numeric($product->weight_grams)
+                ! is_numeric($product->weight_grams)
                 || (float) $product->weight_grams <= 0
             ) {
                 throw new RuntimeException(
@@ -223,7 +223,7 @@ class BiteshipOrderService
             }
 
             if (
-                !is_numeric($orderItem->quantity)
+                ! is_numeric($orderItem->quantity)
                 || (int) $orderItem->quantity <= 0
                 || (float) $orderItem->quantity !== (float) (int) $orderItem->quantity
             ) {
@@ -235,7 +235,7 @@ class BiteshipOrderService
             $unitValue = (float) $orderItem->unit_price
                 - (float) $orderItem->unit_discount;
 
-            if (!is_finite($unitValue) || $unitValue < 0) {
+            if (! is_finite($unitValue) || $unitValue < 0) {
                 throw new RuntimeException(
                     'Nilai produk setelah diskon tidak valid.'
                 );
@@ -245,8 +245,8 @@ class BiteshipOrderService
                 'name' => $orderItem->product_name,
                 'description' => trim(
                     ($orderItem->color_name ?? '')
-                        . ' '
-                        . ($orderItem->size_name ?? '')
+                        .' '
+                        .($orderItem->size_name ?? '')
                 ),
                 'category' => 'fashion',
                 'sku' => $orderItem->sku,
@@ -263,7 +263,7 @@ class BiteshipOrderService
                 ] as $key => $value
             ) {
                 if ($value !== null) {
-                    if (!is_numeric($value) || (float) $value <= 0) {
+                    if (! is_numeric($value) || (float) $value <= 0) {
                         throw new RuntimeException(
                             "Dimensi {$key} produk {$product->name} tidak valid."
                         );
@@ -331,14 +331,14 @@ class BiteshipOrderService
         ) {
             $value = $address[$field] ?? null;
 
-            if (!is_string($value) || trim($value) === '') {
+            if (! is_string($value) || trim($value) === '') {
                 throw new RuntimeException(
                     "Data alamat {$type} tidak lengkap: {$field}."
                 );
             }
         }
 
-        if (!preg_match('/^\d{5}$/', $address['postal_code'])) {
+        if (! preg_match('/^\d{5}$/', $address['postal_code'])) {
             throw new RuntimeException(
                 "Kode pos alamat {$type} tidak valid."
             );
@@ -359,14 +359,14 @@ class BiteshipOrderService
         ) {
             $value = $warehouse->{$field};
 
-            if (!is_string($value) || trim($value) === '') {
+            if (! is_string($value) || trim($value) === '') {
                 throw new RuntimeException(
                     "Data warehouse tidak lengkap: {$field}."
                 );
             }
         }
 
-        if (!preg_match('/^\d{5}$/', $warehouse->postal_code)) {
+        if (! preg_match('/^\d{5}$/', $warehouse->postal_code)) {
             throw new RuntimeException(
                 'Kode pos warehouse tidak valid.'
             );
@@ -375,20 +375,20 @@ class BiteshipOrderService
 
     private function validateProviderResponse(Response $response): void
     {
-        if (!$response->successful()) {
+        if (! $response->successful()) {
             throw new RuntimeException(
                 'Biteship gagal memproses shipment. HTTP status: '
-                    . $response->status()
+                    .$response->status()
             );
         }
 
         $data = $response->json();
 
         if (
-            !is_array($data)
+            ! is_array($data)
             || ($data['success'] ?? null) !== true
-            || !isset($data['id'])
-            || !is_string($data['id'])
+            || ! isset($data['id'])
+            || ! is_string($data['id'])
             || trim($data['id']) === ''
         ) {
             throw new RuntimeException(
@@ -401,9 +401,9 @@ class BiteshipOrderService
             $status = $data['status'];
 
             if (
-                !is_string($status)
+                ! is_string($status)
                 || trim($status) === ''
-                || !$this->isKnownShipmentStatus($status)
+                || ! $this->isKnownShipmentStatus($status)
             ) {
                 throw new RuntimeException(
                     'Status pengiriman pada respons Biteship tidak valid.'
@@ -414,7 +414,7 @@ class BiteshipOrderService
         // Validasi struktur data kurir.
         if (
             isset($data['courier'])
-            && !is_array($data['courier'])
+            && ! is_array($data['courier'])
         ) {
             throw new RuntimeException(
                 'Data kurir pada respons Biteship tidak valid.'
@@ -431,9 +431,9 @@ class BiteshipOrderService
             $trackingUrl = $courier['link'];
 
             if (
-                !is_string($trackingUrl)
+                ! is_string($trackingUrl)
                 || filter_var($trackingUrl, FILTER_VALIDATE_URL) === false
-                || !in_array(
+                || ! in_array(
                     strtolower((string) parse_url($trackingUrl, PHP_URL_SCHEME)),
                     ['http', 'https'],
                     true
@@ -458,7 +458,7 @@ class BiteshipOrderService
                 array_key_exists($field, $courier)
                 && $courier[$field] !== null
                 && (
-                    !is_string($courier[$field])
+                    ! is_string($courier[$field])
                     || trim($courier[$field]) === ''
                 )
             ) {
@@ -490,7 +490,7 @@ class BiteshipOrderService
                 )
             );
 
-            if (!$isValidPrice) {
+            if (! $isValidPrice) {
                 throw new RuntimeException(
                     'Biaya pengiriman pada respons Biteship tidak valid.'
                 );

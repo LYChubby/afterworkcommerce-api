@@ -169,14 +169,14 @@ class BiteshipService
             ->timeout(config('biteship.timeout', 20))
             ->post(
                 rtrim(config('biteship.base_url'), '/')
-                    . '/rates/couriers',
+                    .'/rates/couriers',
                 $payload
             );
 
         if ($response->failed()) {
             throw new RuntimeException(
                 'Gagal mengambil tarif Biteship: '
-                    . $response->body()
+                    .$response->body()
             );
         }
 
@@ -200,10 +200,8 @@ class BiteshipService
                     return [
                         'courier_code' => $rate['courier_code'] ?? null,
                         'courier_name' => $rate['courier_name'] ?? null,
-                        'courier_service_code' =>
-                        $rate['courier_service_code'] ?? null,
-                        'courier_service_name' =>
-                        $rate['courier_service_name'] ?? null,
+                        'courier_service_code' => $rate['courier_service_code'] ?? null,
+                        'courier_service_name' => $rate['courier_service_name'] ?? null,
                         'description' => $rate['description'] ?? null,
                         'duration' => $rate['duration'] ?? null,
                         'service_type' => $rate['service_type'] ?? null,

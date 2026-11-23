@@ -68,20 +68,20 @@ return new class extends Migration
         });
 
         // Validasi tambahan khusus PostgreSQL
-        DB::statement("
+        DB::statement('
             ALTER TABLE inventory_movements
             ADD CONSTRAINT inventory_movements_quantity_check
             CHECK (quantity > 0)
-        ");
+        ');
 
-        DB::statement("
+        DB::statement('
             ALTER TABLE inventory_movements
             ADD CONSTRAINT inventory_movements_stock_check
             CHECK (
                 stock_reserved_before <= stock_on_hand_before
                 AND stock_reserved_after <= stock_on_hand_after
             )
-        ");
+        ');
     }
 
     public function down(): void

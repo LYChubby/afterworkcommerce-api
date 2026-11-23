@@ -41,20 +41,15 @@ class ResetPasswordRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'token.required' =>
-            'Token reset password wajib diisi.',
+            'token.required' => 'Token reset password wajib diisi.',
 
-            'email.required' =>
-            'Email wajib diisi.',
+            'email.required' => 'Email wajib diisi.',
 
-            'email.email' =>
-            'Format email tidak valid.',
+            'email.email' => 'Format email tidak valid.',
 
-            'password.required' =>
-            'Password baru wajib diisi.',
+            'password.required' => 'Password baru wajib diisi.',
 
-            'password.confirmed' =>
-            'Konfirmasi password tidak cocok.',
+            'password.confirmed' => 'Konfirmasi password tidak cocok.',
         ];
     }
 }

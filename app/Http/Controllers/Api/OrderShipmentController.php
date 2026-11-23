@@ -42,7 +42,7 @@ class OrderShipmentController extends Controller
 
         $shipment = $order->shipment;
 
-        if (!$shipment) {
+        if (! $shipment) {
             return ApiResponse::success(
                 data: null,
                 message: 'Informasi pengiriman belum tersedia.',

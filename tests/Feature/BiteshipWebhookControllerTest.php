@@ -7,6 +7,8 @@ use App\Models\ShipmentEvent;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
@@ -265,7 +267,7 @@ it('updates order status to delivered when shipment is delivered', function () {
     expect($shipment->fresh()->status)->toBe('delivered');
 
     expect($shipment->order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_DELIVERED);
+        ->toBe(Order::STATUS_DELIVERED);
 });
 
 it('updates order status to returned when shipment is returned', function () {
@@ -284,7 +286,7 @@ it('updates order status to returned when shipment is returned', function () {
     expect($shipment->fresh()->status)->toBe('returned');
 
     expect($shipment->order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_RETURNED);
+        ->toBe(Order::STATUS_RETURNED);
 });
 
 it('does not downgrade delivered shipment or order status from late webhook', function () {
@@ -295,7 +297,7 @@ it('does not downgrade delivered shipment or order status from late webhook', fu
     ]);
 
     $shipment->order->update([
-        'status' => \App\Models\Order::STATUS_DELIVERED,
+        'status' => Order::STATUS_DELIVERED,
     ]);
 
     $response = $this->withHeaders([
@@ -311,14 +313,14 @@ it('does not downgrade delivered shipment or order status from late webhook', fu
     expect($shipment->fresh()->status)->toBe('delivered');
 
     expect($shipment->order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_DELIVERED);
+        ->toBe(Order::STATUS_DELIVERED);
 });
 
 it('does not change cancelled order status from shipment webhook', function () {
     $shipment = $this->shipment->fresh();
 
     $shipment->order->update([
-        'status' => \App\Models\Order::STATUS_CANCELLED,
+        'status' => Order::STATUS_CANCELLED,
     ]);
 
     $response = $this->withHeaders([
@@ -332,9 +334,8 @@ it('does not change cancelled order status from shipment webhook', function () {
     $response->assertOk();
 
     expect($shipment->order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_CANCELLED);
+        ->toBe(Order::STATUS_CANCELLED);
 });
-
 
 it('maps Biteship courier statuses to shipped order status', function (string $shipmentStatus) {
     $shipment = $this->shipment->fresh();
@@ -358,7 +359,6 @@ it('maps Biteship courier statuses to shipped order status', function (string $s
     'picked',
     'dropping_off',
 ]);
-
 
 it('detects duplicate webhook even when payload key order is different', function () {
     $headers = [
@@ -393,7 +393,6 @@ it('detects duplicate webhook even when payload key order is different', functio
 
     $this->assertDatabaseCount('shipment_events', 1);
 });
-
 
 it('rejects webhook when status is not a string', function () {
     $response = $this->withHeaders([
@@ -474,7 +473,7 @@ test('it does not downgrade order status when an older webhook arrives', functio
     ]);
 
     $shipment->order->update([
-        'status' => \App\Models\Order::STATUS_SHIPPED,
+        'status' => Order::STATUS_SHIPPED,
     ]);
 
     $response = $this->withHeaders([
@@ -493,7 +492,7 @@ test('it does not downgrade order status when an older webhook arrives', functio
 
     // Order tidak boleh mundur dari shipped ke processing.
     expect($shipment->order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_SHIPPED);
+        ->toBe(Order::STATUS_SHIPPED);
 });
 
 test('it preserves existing tracking information when webhook sends empty values', function () {
@@ -553,7 +552,7 @@ test('it prevents customers from viewing another customers shipment tracking', f
     $order = $this->shipment->order;
 
     $owner = $order->user;
-    $anotherUser = \App\Models\User::factory()->create();
+    $anotherUser = User::factory()->create();
 
     $order->update([
         'user_id' => $anotherUser->id,
@@ -592,14 +591,12 @@ test('it rejects unauthenticated customers from viewing shipment tracking', func
     $response->assertUnauthorized();
 });
 
-
-
 test('it returns shipment events ordered from newest to oldest', function () {
     $order = $this->shipment->order;
 
-    $olderEventId = \Illuminate\Support\Facades\DB::table('shipment_events')
+    $olderEventId = DB::table('shipment_events')
         ->insertGetId([
-            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'uuid' => (string) Str::uuid(),
             'shipment_id' => $this->shipment->id,
             'event_type' => 'order.status',
             'status' => 'picked',
@@ -614,9 +611,9 @@ test('it returns shipment events ordered from newest to oldest', function () {
             'updated_at' => now(),
         ]);
 
-    $newerEventId = \Illuminate\Support\Facades\DB::table('shipment_events')
+    $newerEventId = DB::table('shipment_events')
         ->insertGetId([
-            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'uuid' => (string) Str::uuid(),
             'shipment_id' => $this->shipment->id,
             'event_type' => 'order.status',
             'status' => 'inTransit',
@@ -646,7 +643,6 @@ test('it returns shipment events ordered from newest to oldest', function () {
         ->assertJsonMissingPath('data.events.0.event_hash');
 });
 
-
 test('it does not expose internal shipment provider data in tracking response', function () {
     $order = $this->shipment->order;
 
@@ -657,9 +653,9 @@ test('it does not expose internal shipment provider data in tracking response', 
         ],
     ]);
 
-    \Illuminate\Support\Facades\DB::table('shipment_events')
+    DB::table('shipment_events')
         ->insert([
-            'uuid' => (string) \Illuminate\Support\Str::uuid(),
+            'uuid' => (string) Str::uuid(),
             'shipment_id' => $this->shipment->id,
             'event_type' => 'order.status',
             'status' => 'picked',
@@ -709,7 +705,7 @@ it('rejects webhook when shipping price is decimal', function () {
 });
 
 it('rejects webhook when shipping price exceeds PHP_INT_MAX', function () {
-    $price = PHP_INT_MAX . '0';
+    $price = PHP_INT_MAX.'0';
 
     $response = $this->withHeaders([
         'X-AfterWork-Biteship-Key' => 'test-biteship-secret',
@@ -1009,7 +1005,7 @@ it('handles return in transit status correctly', function () {
     ]);
 
     expect($this->shipment->order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_RETURNED);
+        ->toBe(Order::STATUS_RETURNED);
 });
 
 it('does not downgrade return in transit shipment from late delivered webhook', function () {
@@ -1038,7 +1034,7 @@ it('does not downgrade returned order status from late delivered webhook', funct
     $order = $this->shipment->order;
 
     $order->update([
-        'status' => \App\Models\Order::STATUS_RETURNED,
+        'status' => Order::STATUS_RETURNED,
     ]);
 
     $this->shipment->update([
@@ -1061,14 +1057,14 @@ it('does not downgrade returned order status from late delivered webhook', funct
     expect($this->shipment->fresh()->status)->toBe('returned');
 
     expect($order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_RETURNED);
+        ->toBe(Order::STATUS_RETURNED);
 });
 
 it('does not downgrade cancelled order status from late delivered webhook', function () {
     $order = $this->shipment->order;
 
     $order->update([
-        'status' => \App\Models\Order::STATUS_CANCELLED,
+        'status' => Order::STATUS_CANCELLED,
     ]);
 
     $response = $this->withHeaders([
@@ -1085,14 +1081,14 @@ it('does not downgrade cancelled order status from late delivered webhook', func
         ]);
 
     expect($order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_CANCELLED);
+        ->toBe(Order::STATUS_CANCELLED);
 });
 
 it('does not downgrade expired order status from late delivered webhook', function () {
     $order = $this->shipment->order;
 
     $order->update([
-        'status' => \App\Models\Order::STATUS_EXPIRED,
+        'status' => Order::STATUS_EXPIRED,
     ]);
 
     $response = $this->withHeaders([
@@ -1109,14 +1105,14 @@ it('does not downgrade expired order status from late delivered webhook', functi
         ]);
 
     expect($order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_EXPIRED);
+        ->toBe(Order::STATUS_EXPIRED);
 });
 
 it('updates delivered order to returned when return webhook arrives', function () {
     $order = $this->shipment->order;
 
     $order->update([
-        'status' => \App\Models\Order::STATUS_DELIVERED,
+        'status' => Order::STATUS_DELIVERED,
     ]);
 
     $response = $this->withHeaders([
@@ -1133,7 +1129,7 @@ it('updates delivered order to returned when return webhook arrives', function (
         ]);
 
     expect($order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_RETURNED);
+        ->toBe(Order::STATUS_RETURNED);
 });
 
 it('updates shipment and records event when shipment is returned', function () {
@@ -1161,7 +1157,7 @@ it('updates shipment and records event when shipment is returned', function () {
     ]);
 
     expect($this->shipment->order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_RETURNED);
+        ->toBe(Order::STATUS_RETURNED);
 });
 
 it('does not create duplicate shipment events for repeated returned webhook', function () {
@@ -1192,7 +1188,7 @@ it('does not create duplicate shipment events for repeated returned webhook', fu
         ]);
 
     expect(
-        \App\Models\ShipmentEvent::where(
+        ShipmentEvent::where(
             'shipment_id',
             $this->shipment->id
         )
@@ -1201,14 +1197,14 @@ it('does not create duplicate shipment events for repeated returned webhook', fu
     )->toBe(1);
 
     expect($this->shipment->order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_RETURNED);
+        ->toBe(Order::STATUS_RETURNED);
 });
 
 it('preserves returned order status when return in transit webhook arrives', function () {
     $order = $this->shipment->order;
 
     $order->update([
-        'status' => \App\Models\Order::STATUS_RETURNED,
+        'status' => Order::STATUS_RETURNED,
     ]);
 
     $response = $this->withHeaders([
@@ -1230,7 +1226,7 @@ it('preserves returned order status when return in transit webhook arrives', fun
     ]);
 
     expect($order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_RETURNED);
+        ->toBe(Order::STATUS_RETURNED);
 });
 
 it('does not create duplicate events for repeated return in transit webhook', function () {
@@ -1261,7 +1257,7 @@ it('does not create duplicate events for repeated return in transit webhook', fu
         ]);
 
     expect(
-        \App\Models\ShipmentEvent::where(
+        ShipmentEvent::where(
             'shipment_id',
             $this->shipment->id
         )
@@ -1275,14 +1271,14 @@ it('does not create duplicate events for repeated return in transit webhook', fu
     ]);
 
     expect($this->shipment->order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_RETURNED);
+        ->toBe(Order::STATUS_RETURNED);
 });
 
 it('preserves returned order status when late in transit webhook arrives', function () {
     $order = $this->shipment->order;
 
     $order->update([
-        'status' => \App\Models\Order::STATUS_RETURNED,
+        'status' => Order::STATUS_RETURNED,
     ]);
 
     $response = $this->withHeaders([
@@ -1299,14 +1295,14 @@ it('preserves returned order status when late in transit webhook arrives', funct
         ]);
 
     expect($order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_RETURNED);
+        ->toBe(Order::STATUS_RETURNED);
 });
 
 it('preserves returned order status when late delivered webhook arrives', function () {
     $order = $this->shipment->order;
 
     $order->update([
-        'status' => \App\Models\Order::STATUS_RETURNED,
+        'status' => Order::STATUS_RETURNED,
     ]);
 
     $response = $this->withHeaders([
@@ -1323,7 +1319,7 @@ it('preserves returned order status when late delivered webhook arrives', functi
         ]);
 
     expect($order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_RETURNED);
+        ->toBe(Order::STATUS_RETURNED);
 });
 
 it('preserves existing delivered timestamp when late delivered webhook arrives', function () {
@@ -1337,7 +1333,7 @@ it('preserves existing delivered timestamp when late delivered webhook arrives',
     ]);
 
     $order->update([
-        'status' => \App\Models\Order::STATUS_RETURNED,
+        'status' => Order::STATUS_RETURNED,
     ]);
 
     $response = $this->withHeaders([
@@ -1357,14 +1353,14 @@ it('preserves existing delivered timestamp when late delivered webhook arrives',
         ->toBe($deliveredAt->toDateTimeString());
 
     expect($order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_RETURNED);
+        ->toBe(Order::STATUS_RETURNED);
 });
 
 it('preserves cancelled order status when returned webhook arrives', function () {
     $order = $this->shipment->order;
 
     $order->update([
-        'status' => \App\Models\Order::STATUS_CANCELLED,
+        'status' => Order::STATUS_CANCELLED,
     ]);
 
     $response = $this->withHeaders([
@@ -1381,14 +1377,14 @@ it('preserves cancelled order status when returned webhook arrives', function ()
         ]);
 
     expect($order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_CANCELLED);
+        ->toBe(Order::STATUS_CANCELLED);
 });
 
 it('preserves expired order status when returned webhook arrives', function () {
     $order = $this->shipment->order;
 
     $order->update([
-        'status' => \App\Models\Order::STATUS_EXPIRED,
+        'status' => Order::STATUS_EXPIRED,
     ]);
 
     $response = $this->withHeaders([
@@ -1405,14 +1401,14 @@ it('preserves expired order status when returned webhook arrives', function () {
         ]);
 
     expect($order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_EXPIRED);
+        ->toBe(Order::STATUS_EXPIRED);
 });
 
 it('preserves cancelled order status when return in transit webhook arrives', function () {
     $order = $this->shipment->order;
 
     $order->update([
-        'status' => \App\Models\Order::STATUS_CANCELLED,
+        'status' => Order::STATUS_CANCELLED,
     ]);
 
     $response = $this->withHeaders([
@@ -1434,14 +1430,14 @@ it('preserves cancelled order status when return in transit webhook arrives', fu
     ]);
 
     expect($order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_CANCELLED);
+        ->toBe(Order::STATUS_CANCELLED);
 });
 
 it('preserves expired order status when return in transit webhook arrives', function () {
     $order = $this->shipment->order;
 
     $order->update([
-        'status' => \App\Models\Order::STATUS_EXPIRED,
+        'status' => Order::STATUS_EXPIRED,
     ]);
 
     $response = $this->withHeaders([
@@ -1463,7 +1459,7 @@ it('preserves expired order status when return in transit webhook arrives', func
     ]);
 
     expect($order->fresh()->status)
-        ->toBe(\App\Models\Order::STATUS_EXPIRED);
+        ->toBe(Order::STATUS_EXPIRED);
 });
 
 it('rejects webhook when header configuration is empty', function () {

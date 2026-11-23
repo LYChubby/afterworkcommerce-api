@@ -80,7 +80,7 @@ return new class extends Migration
         });
 
         // Validasi nilai uang
-        DB::statement("
+        DB::statement('
             ALTER TABLE orders
             ADD CONSTRAINT orders_amounts_check
             CHECK (
@@ -91,7 +91,7 @@ return new class extends Migration
                 AND item_discount_total <= subtotal
                 AND grand_total = subtotal - item_discount_total + shipping_cost
             )
-        ");
+        ');
     }
 
     public function down(): void

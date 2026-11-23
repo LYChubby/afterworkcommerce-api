@@ -60,11 +60,11 @@ return new class extends Migration
             );
         });
 
-        DB::statement("
+        DB::statement('
             ALTER TABLE inventory_reservations
             ADD CONSTRAINT inventory_reservations_quantity_check
             CHECK (quantity > 0)
-        ");
+        ');
 
         DB::statement("
             ALTER TABLE inventory_reservations

@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Support\Str;
 
 class ProductVariant extends Model
@@ -72,7 +72,7 @@ class ProductVariant extends Model
     protected function availableStock(): Attribute
     {
         return Attribute::get(
-            fn() => max(
+            fn () => max(
                 0,
                 $this->stock_on_hand - $this->stock_reserved
             )

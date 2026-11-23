@@ -1,21 +1,20 @@
 <?php
 
+use App\Jobs\CreateBiteshipShipmentJob;
 use App\Models\Category;
 use App\Models\Color;
-use App\Models\Payment;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\ShippingQuote;
 use App\Models\Size;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\MidtransNotificationService;
 use App\Services\OrderCancellationService;
 use App\Services\OrderService;
-use App\Models\ShippingQuote;
-use App\Jobs\CreateBiteshipShipmentJob;
-use Illuminate\Support\Str;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -141,7 +140,7 @@ function createMidtransWebhookTestPayment($test): array
 
     $payment = $order->payments()->create([
         'provider' => 'midtrans',
-        'provider_order_id' => $order->order_number . '-P-TEST01',
+        'provider_order_id' => $order->order_number.'-P-TEST01',
         'gross_amount' => $order->grand_total,
         'status' => 'pending',
     ]);
@@ -170,9 +169,9 @@ function createMidtransWebhookPayload(
 
     $payload['signature_key'] = hash(
         'sha512',
-        $payload['order_id'] .
-            $payload['status_code'] .
-            $payload['gross_amount'] .
+        $payload['order_id'].
+            $payload['status_code'].
+            $payload['gross_amount'].
             config('midtrans.server_key')
     );
 
@@ -207,7 +206,7 @@ test('invalid signature is rejected without changing payment or stock', function
 
     $payload['signature_key'] = 'invalid-signature';
 
-    expect(fn() => app(MidtransNotificationService::class)->handle($payload))
+    expect(fn () => app(MidtransNotificationService::class)->handle($payload))
         ->toThrow(InvalidArgumentException::class);
 
     $order->refresh();
@@ -228,7 +227,7 @@ test('notification with mismatched gross amount is rejected', function () {
         'gross_amount' => '1000.00',
     ]);
 
-    expect(fn() => app(MidtransNotificationService::class)->handle($payload))
+    expect(fn () => app(MidtransNotificationService::class)->handle($payload))
         ->toThrow(RuntimeException::class);
 
     $order->refresh();
@@ -332,7 +331,6 @@ test('capture notification with challenge fraud status does not confirm payment'
         CreateBiteshipShipmentJob::class
     );
 });
-
 
 test('midtrans webhook endpoint accepts a valid notification', function () {
     [$order, $payment] = createMidtransWebhookTestPayment($this);

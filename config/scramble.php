@@ -1,6 +1,10 @@
 <?php
 
+use App\Scramble\Extensions\ApiExceptionToResponseExtension;
+use App\Scramble\Extensions\ApiServerErrorOperationExtension;
 use Dedoc\Scramble\Http\Middleware\RestrictedDocsAccess;
+use Dedoc\Scramble\OpenApiVersion;
+use Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy;
 
 return [
     /*
@@ -44,7 +48,7 @@ return [
     /*
      * OpenAPI version of the resulting document.
      */
-    'openapi_version' => \Dedoc\Scramble\OpenApiVersion::V3_1,
+    'openapi_version' => OpenApiVersion::V3_1,
 
     'info' => [
         'version' => env('API_VERSION', '1.0.0'),
@@ -179,8 +183,8 @@ return [
     ],
 
     'extensions' => [
-        \App\Scramble\Extensions\ApiExceptionToResponseExtension::class,
-        \App\Scramble\Extensions\ApiServerErrorOperationExtension::class,
+        ApiExceptionToResponseExtension::class,
+        ApiServerErrorOperationExtension::class,
     ],
 
     /*
@@ -206,6 +210,5 @@ return [
      * ],
      */
     // 'security_strategy' => \Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy::class,
-    'security_strategy' =>
-    \Dedoc\Scramble\SecurityDocumentation\MiddlewareAuthSecurityStrategy::class,
+    'security_strategy' => MiddlewareAuthSecurityStrategy::class,
 ];

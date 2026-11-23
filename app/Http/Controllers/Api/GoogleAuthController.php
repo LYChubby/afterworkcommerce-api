@@ -8,15 +8,14 @@ use App\Models\User;
 use App\Services\OAuthLoginCodeService;
 use App\Support\ApiResponse;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Laravel\Socialite\Facades\Socialite;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
-use Throwable;
+use Laravel\Socialite\Facades\Socialite;
 use RuntimeException;
+use Throwable;
 
 class GoogleAuthController extends Controller
 {
@@ -82,7 +81,7 @@ class GoogleAuthController extends Controller
                         ->first();
 
                     if ($existingUser) {
-                        throw new \RuntimeException(
+                        throw new RuntimeException(
                             'An account with this email already exists.'
                         );
                     }
@@ -110,7 +109,7 @@ class GoogleAuthController extends Controller
             });
         } catch (Throwable $exception) {
             if (
-                $exception instanceof \RuntimeException
+                $exception instanceof RuntimeException
                 && $exception->getMessage()
                 === 'An account with this email already exists.'
             ) {
@@ -124,11 +123,10 @@ class GoogleAuthController extends Controller
 
         return redirect()->away(
             rtrim(config('services.frontend.url'), '/')
-                . '/auth/callback?'
-                . http_build_query(['code' => $code])
+                .'/auth/callback?'
+                .http_build_query(['code' => $code])
         );
     }
-
 
     /**
      * Tukar kode login OAuth sekali pakai menjadi token Sanctum.
@@ -196,8 +194,8 @@ class GoogleAuthController extends Controller
     {
         return redirect()->away(
             rtrim(config('services.frontend.url'), '/')
-                . '/login?'
-                . http_build_query(['error' => $error])
+                .'/login?'
+                .http_build_query(['error' => $error])
         );
     }
 }

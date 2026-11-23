@@ -3,17 +3,16 @@
 use App\Models\Category;
 use App\Models\Color;
 use App\Models\InventoryReservation;
-use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\ShippingQuote;
 use App\Models\Size;
 use App\Models\User;
 use App\Models\Warehouse;
-use App\Models\ShippingQuote;
-use Illuminate\Support\Str;
 use App\Services\OrderCancellationService;
 use App\Services\OrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
 
@@ -168,7 +167,7 @@ test('customer cannot cancel another customers order', function () {
     );
 
     expect(
-        fn() => app(OrderCancellationService::class)
+        fn () => app(OrderCancellationService::class)
             ->cancelPendingOrder($order->id, $this->otherUser->id)
     )->toThrow(RuntimeException::class);
 
@@ -222,7 +221,7 @@ test('order cannot expire before its payment deadline', function () {
     );
 
     expect(
-        fn() => app(OrderCancellationService::class)
+        fn () => app(OrderCancellationService::class)
             ->expirePendingOrder($order->id)
     )->toThrow(RuntimeException::class);
 

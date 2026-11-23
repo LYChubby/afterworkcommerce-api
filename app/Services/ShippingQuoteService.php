@@ -7,7 +7,6 @@ use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use RuntimeException;
 
 class ShippingQuoteService
 {
@@ -91,10 +90,8 @@ class ShippingQuoteService
 
                     'courier_code' => $rate['courier_code'],
                     'courier_name' => $rate['courier_name'] ?? '',
-                    'courier_service_code' =>
-                    $rate['courier_service_code'] ?? null,
-                    'courier_service_name' =>
-                    $rate['courier_service_name'] ?? null,
+                    'courier_service_code' => $rate['courier_service_code'] ?? null,
+                    'courier_service_name' => $rate['courier_service_name'] ?? null,
                     'description' => $rate['description'] ?? null,
                     'duration' => $rate['duration'] ?? null,
                     'service_type' => $rate['service_type'] ?? null,
@@ -115,14 +112,12 @@ class ShippingQuoteService
             'expires_at' => $expiresAt->toISOString(),
 
             'options' => collect($quotes)
-                ->map(fn(ShippingQuote $quote) => [
+                ->map(fn (ShippingQuote $quote) => [
                     'quote_uuid' => $quote->uuid,
                     'courier_code' => $quote->courier_code,
                     'courier_name' => $quote->courier_name,
-                    'courier_service_code' =>
-                    $quote->courier_service_code,
-                    'courier_service_name' =>
-                    $quote->courier_service_name,
+                    'courier_service_code' => $quote->courier_service_code,
+                    'courier_service_name' => $quote->courier_service_name,
                     'description' => $quote->description,
                     'duration' => $quote->duration,
                     'shipping_fee' => $quote->shipping_fee,
@@ -149,7 +144,7 @@ class ShippingQuoteService
         ksort($normalized);
 
         return collect($normalized)
-            ->map(fn($quantity, $variantId) => [
+            ->map(fn ($quantity, $variantId) => [
                 'variant_id' => (int) $variantId,
                 'quantity' => $quantity,
             ])

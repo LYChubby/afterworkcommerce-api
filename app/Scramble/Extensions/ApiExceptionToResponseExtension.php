@@ -14,7 +14,9 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\RecordsNotFoundException;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 class ApiExceptionToResponseExtension extends ExceptionToResponseExtension
 {
@@ -113,11 +115,11 @@ class ApiExceptionToResponseExtension extends ExceptionToResponseExtension
 
             return match (true) {
                 $type->isInstanceOf(
-                    \Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException::class
+                    MethodNotAllowedHttpException::class
                 ) => 405,
 
                 $type->isInstanceOf(
-                    \Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException::class
+                    TooManyRequestsHttpException::class
                 ) => 429,
 
                 default => null,

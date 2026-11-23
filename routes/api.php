@@ -1,19 +1,20 @@
 <?php
 
+use App\Http\Controllers\Api\AdminCategoryController;
+use App\Http\Controllers\Api\AdminProductController;
 use App\Http\Controllers\Api\AuthenticatedUserController;
 use App\Http\Controllers\Api\BiteshipWebhookController;
+use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\ForgotPasswordController;
 use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\LoginController;
 use App\Http\Controllers\Api\MidtransNotificationController;
 use App\Http\Controllers\Api\OrderShipmentController;
 use App\Http\Controllers\Api\PaymentController;
-use App\Http\Controllers\Api\RegisterController;
-use App\Http\Controllers\Api\ShippingRateController;
-use App\Http\Controllers\Api\ForgotPasswordController;
-use App\Http\Controllers\Api\ResetPasswordController;
-use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ProductController;
-use App\Http\Controllers\Api\AdminCategoryController;
+use App\Http\Controllers\Api\RegisterController;
+use App\Http\Controllers\Api\ResetPasswordController;
+use App\Http\Controllers\Api\ShippingRateController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -83,12 +84,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('admin')
         ->middleware('admin')
         ->group(function () {
-            Route::apiResource(
-                'categories',
-                AdminCategoryController::class
-            )->parameters([
-                'categories' => 'uuid',
-            ]);
+            Route::apiResource('categories', AdminCategoryController::class)
+                ->parameters(['categories' => 'uuid']);
+
+            Route::apiResource('products', AdminProductController::class)
+                ->parameters(['products' => 'uuid']);
         });
 });
 

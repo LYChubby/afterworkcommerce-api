@@ -13,6 +13,7 @@ class ProductResource extends JsonResource
             'uuid' => $this->uuid,
             'name' => $this->name,
             'slug' => $this->slug,
+            'is_active' => $this->is_active,
             'description' => $this->description,
 
             'price' => $this->price,
@@ -42,8 +43,8 @@ class ProductResource extends JsonResource
 
             'total_available_stock' => $this->whenLoaded(
                 'variants',
-                fn() => $this->variants->sum(
-                    fn($variant) => $variant->available_stock
+                fn () => $this->variants->sum(
+                    fn ($variant) => $variant->available_stock
                 )
             ),
 

@@ -33,4 +33,21 @@ class ProductController extends Controller
             ],
         );
     }
+
+    /**
+     * Menampilkan detail produk berdasarkan slug.
+     */
+    public function show(
+        string $slug,
+        ProductService $productService
+    ): JsonResponse {
+        $product = $productService->getProductBySlug($slug);
+
+        return ApiResponse::success(
+            data: (new ProductResource($product))
+                ->response()
+                ->getData(true)['data'],
+            message: 'Detail produk berhasil diambil.',
+        );
+    }
 }
