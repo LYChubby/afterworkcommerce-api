@@ -64,6 +64,8 @@ Route::get('/categories', [CategoryController::class, 'index'])
 Route::middleware('auth:sanctum')->group(function () {
     // Auth
     Route::get('/auth/me', [AuthenticatedUserController::class, 'show'])->name('auth.me');
+    Route::put('/auth/me', [AuthenticatedUserController::class, 'update'])
+        ->name('auth.me.update');
     Route::post('/auth/logout', [AuthenticatedUserController::class, 'destroy'])->name('auth.logout');
 
     // Orders
