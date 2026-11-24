@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AddressController;
 use App\Http\Controllers\Api\AdminCategoryController;
 use App\Http\Controllers\Api\AdminColorController;
 use App\Http\Controllers\Api\AdminProductController;
@@ -77,6 +78,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/shipping/rates', ShippingRateController::class)
         ->middleware('throttle:10,1')
         ->name('shipping.rates');
+
+    // Customer Addresses
+    Route::apiResource('addresses', AddressController::class)
+        ->parameters(['addresses' => 'uuid']);
 
     /*
     |--------------------------------------------------------------------------
