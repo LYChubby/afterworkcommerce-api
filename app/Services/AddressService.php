@@ -76,13 +76,29 @@ class AddressService
                 ->lockForUpdate()
                 ->firstOrFail();
 
-            if (($data['is_default'] ?? false) === true) {
+            $wasDefault = $address->is_default;
+            $requestedDefault = $data['is_default'] ?? null;
+
+            if ($requestedDefault === true) {
                 $user->addresses()
                     ->where('id', '!=', $address->id)
                     ->update(['is_default' => false]);
             }
 
             $address->update($data);
+
+            if ($wasDefault && $requestedDefault === false) {
+                $nextAddress = $user->addresses()
+                    ->where('id', '!=', $address->id)
+                    ->latest()
+                    ->first();
+
+                if ($nextAddress) {
+                    $nextAddress->update(['is_default' => true]);
+                } else {
+                    $address->update(['is_default' => true]);
+                }
+            }
 
             return $address->refresh();
         });

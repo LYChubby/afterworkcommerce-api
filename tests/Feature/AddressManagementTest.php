@@ -410,3 +410,63 @@ it('returns not found for an unknown address uuid', function () {
         )
         ->assertNotFound();
 });
+
+it('promotes another address when the current default address is unset', function () {
+    $customer = createAddressCustomer();
+
+    $oldDefault = createAddressRecord($customer, [
+        'label' => 'Rumah',
+        'is_default' => true,
+    ]);
+
+    $replacement = createAddressRecord($customer, [
+        'label' => 'Kantor',
+    ]);
+
+    $this->actingAs($customer, 'sanctum')
+        ->patchJson(
+            CUSTOMER_ADDRESSES_ENDPOINT.'/'.$oldDefault->uuid,
+            ['is_default' => false]
+        )
+        ->assertOk()
+        ->assertJsonPath('data.is_default', false);
+
+    $this->assertDatabaseHas('addresses', [
+        'id' => $oldDefault->id,
+        'is_default' => false,
+    ]);
+
+    $this->assertDatabaseHas('addresses', [
+        'id' => $replacement->id,
+        'is_default' => true,
+    ]);
+
+    $this->assertSame(
+        1,
+        Address::query()
+            ->where('user_id', $customer->id)
+            ->where('is_default', true)
+            ->count()
+    );
+});
+
+it('preserves the default status when unsetting the only address', function () {
+    $customer = createAddressCustomer();
+
+    $address = createAddressRecord($customer, [
+        'is_default' => true,
+    ]);
+
+    $this->actingAs($customer, 'sanctum')
+        ->patchJson(
+            CUSTOMER_ADDRESSES_ENDPOINT.'/'.$address->uuid,
+            ['is_default' => false]
+        )
+        ->assertOk()
+        ->assertJsonPath('data.is_default', true);
+
+    $this->assertDatabaseHas('addresses', [
+        'id' => $address->id,
+        'is_default' => true,
+    ]);
+});
