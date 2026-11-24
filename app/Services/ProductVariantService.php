@@ -49,6 +49,8 @@ class ProductVariantService
                 'size_id' => $size->id,
                 'color_id' => $color->id,
                 'sku' => $data['sku'],
+                'stock_on_hand' => 0,
+                'stock_reserved' => 0,
                 'is_active' => $data['is_active'] ?? true,
             ]);
 
@@ -91,18 +93,17 @@ class ProductVariantService
                 $newColorId !== $variant->color_id;
 
             if ($combinationChanged) {
-                $hasInventoryHistory = $variant
-                    ->inventoryMovements()
-                    ->exists();
+                $hasStock = $variant->stock_on_hand > 0
+                    || $variant->stock_reserved > 0;
 
-                $hasReservations = $variant
-                    ->inventoryReservations()
-                    ->exists();
+                $hasInventoryHistory = $variant->inventoryMovements()->exists();
 
-                if ($hasInventoryHistory || $hasReservations) {
+                $hasReservations = $variant->inventoryReservations()->exists();
+
+                if ($hasStock || $hasInventoryHistory || $hasReservations) {
                     throw ValidationException::withMessages([
                         'variant' => [
-                            'Kombinasi ukuran dan warna tidak dapat diubah karena varian sudah memiliki riwayat inventaris atau reservasi.',
+                            'Kombinasi ukuran dan warna tidak dapat diubah karena varian masih memiliki stok atau sudah memiliki riwayat inventaris dan reservasi.',
                         ],
                     ]);
                 }

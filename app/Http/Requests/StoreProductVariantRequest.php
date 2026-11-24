@@ -2,8 +2,13 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Color;
+use App\Models\Product;
+use App\Models\ProductVariant;
+use App\Models\Size;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreProductVariantRequest extends FormRequest
 {
@@ -57,6 +62,46 @@ class StoreProductVariantRequest extends FormRequest
             'sku.unique' => 'SKU sudah digunakan.',
 
             'is_active.boolean' => 'Status aktif harus berupa boolean.',
+        ];
+    }
+
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                $productUuid = $this->route('product');
+
+                $product = Product::query()
+                    ->where('uuid', $productUuid)
+                    ->first();
+
+                $size = Size::query()
+                    ->where('uuid', $this->input('size_uuid'))
+                    ->where('is_active', true)
+                    ->first();
+
+                $color = Color::query()
+                    ->where('uuid', $this->input('color_uuid'))
+                    ->where('is_active', true)
+                    ->first();
+
+                if (! $product || ! $size || ! $color) {
+                    return;
+                }
+
+                $combinationExists = ProductVariant::query()
+                    ->where('product_id', $product->id)
+                    ->where('size_id', $size->id)
+                    ->where('color_id', $color->id)
+                    ->exists();
+
+                if ($combinationExists) {
+                    $validator->errors()->add(
+                        'size_uuid',
+                        'Kombinasi ukuran dan warna sudah digunakan oleh varian lain.'
+                    );
+                }
+            },
         ];
     }
 }
