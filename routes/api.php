@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\Api\AdminCategoryController;
+use App\Http\Controllers\Api\AdminColorController;
 use App\Http\Controllers\Api\AdminProductController;
 use App\Http\Controllers\Api\AdminProductVariantController;
+use App\Http\Controllers\Api\AdminSizeController;
 use App\Http\Controllers\Api\AuthenticatedUserController;
 use App\Http\Controllers\Api\BiteshipWebhookController;
 use App\Http\Controllers\Api\CategoryController;
@@ -98,6 +100,12 @@ Route::middleware('auth:sanctum')->group(function () {
                 'products' => 'product',
                 'variants' => 'variant',
             ]);
+
+            Route::apiResource('sizes', AdminSizeController::class)
+                ->parameters(['sizes' => 'uuid']);
+
+            Route::apiResource('colors', AdminColorController::class)
+                ->parameters(['colors' => 'uuid']);
         });
 });
 
