@@ -27,10 +27,9 @@ class ShippingRateRequest extends FormRequest
                 'max:50',
             ],
 
-            'items.*.variant_id' => [
+            'items.*.variant_uuid' => [
                 'required',
-                'integer',
-                'min:1',
+                'uuid',
             ],
 
             'items.*.quantity' => [
@@ -46,16 +45,19 @@ class ShippingRateRequest extends FormRequest
     {
         return [
             'postal_code.required' => 'Kode pos tujuan wajib diisi.',
-
             'postal_code.regex' => 'Kode pos harus terdiri dari 5 digit.',
 
             'items.required' => 'Daftar produk wajib diisi.',
-
             'items.min' => 'Keranjang belanja tidak boleh kosong.',
+            'items.max' => 'Maksimal 50 produk dapat dihitung sekaligus.',
 
-            'items.*.variant_id.required' => 'Variasi produk wajib dipilih.',
+            'items.*.variant_uuid.required' => 'Variasi produk wajib dipilih.',
+            'items.*.variant_uuid.uuid' => 'Identitas variasi produk tidak valid.',
 
+            'items.*.quantity.required' => 'Jumlah produk wajib diisi.',
+            'items.*.quantity.integer' => 'Jumlah produk harus berupa bilangan bulat.',
             'items.*.quantity.min' => 'Jumlah produk minimal 1.',
+            'items.*.quantity.max' => 'Jumlah produk maksimal 100.',
         ];
     }
 }

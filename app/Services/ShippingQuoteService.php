@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Models\ProductVariant;
 use App\Models\ShippingQuote;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ShippingQuoteService
 {
@@ -24,9 +26,35 @@ class ShippingQuoteService
             ->orderBy('id')
             ->firstOrFail();
 
+        $variantUuids = collect($items)
+            ->pluck('variant_uuid')
+            ->unique()
+            ->values();
+
+        $variants = ProductVariant::query()
+            ->whereIn('uuid', $variantUuids)
+            ->get(['id', 'uuid']);
+
+        if ($variants->count() !== $variantUuids->count()) {
+            throw ValidationException::withMessages([
+                'items' => 'Satu atau lebih variasi produk tidak ditemukan.',
+            ]);
+        }
+
+        $variantIdsByUuid = $variants->pluck('id', 'uuid');
+
+        $normalizedItems = collect($items)
+            ->map(fn (array $item): array => [
+                'variant_id' => (int) $variantIdsByUuid->get(
+                    $item['variant_uuid']
+                ),
+                'quantity' => (int) $item['quantity'],
+            ])
+            ->all();
+
         $rates = $this->biteshipService->getRates(
             ['postal_code' => $postalCode],
-            $items
+            $normalizedItems
         );
 
         $pricing = $rates['pricing'] ?? [];
@@ -41,8 +69,6 @@ class ShippingQuoteService
 
         $groupUuid = (string) Str::uuid();
         $expiresAt = now()->addMinutes(15);
-
-        $normalizedItems = $this->normalizeItems($items);
 
         $quotes = DB::transaction(function () use (
             $user,

@@ -113,7 +113,7 @@ it('returns shipping rates to authenticated customers', function () {
         'postal_code' => '40115',
         'items' => [
             [
-                'variant_id' => $this->variant->id,
+                'variant_uuid' => $this->variant->uuid,
                 'quantity' => 2,
             ],
         ],
@@ -142,7 +142,7 @@ it('rejects unauthenticated shipping rate requests', function () {
         'postal_code' => '40115',
         'items' => [
             [
-                'variant_id' => $this->variant->id,
+                'variant_uuid' => $this->variant->uuid,
                 'quantity' => 1,
             ],
         ],
@@ -186,7 +186,7 @@ it('returns empty options when no courier rates are available', function () {
         'postal_code' => '40115',
         'items' => [
             [
-                'variant_id' => $this->variant->id,
+                'variant_uuid' => $this->variant->uuid,
                 'quantity' => 1,
             ],
         ],

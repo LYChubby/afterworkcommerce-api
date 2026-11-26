@@ -140,7 +140,7 @@ class OrderService
             );
 
             $orderPostalCode = trim(
-                (string) ($shippingAddressSnapshot['postal_code'] ?? '')
+                (string) ($addressSnapshot['postal_code'] ?? '')
             );
 
             if (

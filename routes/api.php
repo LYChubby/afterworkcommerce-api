@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\AuthenticatedUserController;
 use App\Http\Controllers\Api\BiteshipWebhookController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\ForgotPasswordController;
 use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\LoginController;
@@ -76,6 +77,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders/{order}/shipment', [OrderShipmentController::class, 'show'])
         ->middleware('throttle:60,1')
         ->name('orders.shipment.show');
+
+    // Orders
+    Route::post('/checkout', [CheckoutController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('checkout.store');
+
+    Route::post('/orders/{order}/payment', [PaymentController::class, 'store'])
+        ->name('orders.payment.store');
 
     // Shipping
     Route::post('/shipping/rates', ShippingRateController::class)
