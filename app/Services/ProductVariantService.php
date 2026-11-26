@@ -98,12 +98,23 @@ class ProductVariantService
 
                 $hasInventoryHistory = $variant->inventoryMovements()->exists();
 
-                $hasReservations = $variant->inventoryReservations()->exists();
+                $hasReservations = $variant
+                    ->inventoryReservations()
+                    ->exists();
 
-                if ($hasStock || $hasInventoryHistory || $hasReservations) {
+                $hasCartItems = $variant
+                    ->cartItems()
+                    ->exists();
+
+                if (
+                    $hasStock
+                    || $hasInventoryHistory
+                    || $hasReservations
+                    || $hasCartItems
+                ) {
                     throw ValidationException::withMessages([
                         'variant' => [
-                            'Kombinasi ukuran dan warna tidak dapat diubah karena varian masih memiliki stok atau sudah memiliki riwayat inventaris dan reservasi.',
+                            'Kombinasi ukuran dan warna tidak dapat diubah karena varian masih memiliki stok, riwayat inventaris, reservasi, atau digunakan dalam keranjang pelanggan.',
                         ],
                     ]);
                 }
@@ -139,10 +150,19 @@ class ProductVariantService
                 ->inventoryReservations()
                 ->exists();
 
-            if ($hasStock || $hasInventoryHistory || $hasReservations) {
+            $hasCartItems = $variant
+                ->cartItems()
+                ->exists();
+
+            if (
+                $hasStock
+                || $hasInventoryHistory
+                || $hasReservations
+                || $hasCartItems
+            ) {
                 throw ValidationException::withMessages([
                     'variant' => [
-                        'Varian tidak dapat dihapus karena masih memiliki stok atau riwayat inventaris dan reservasi. Nonaktifkan varian jika tidak ingin digunakan.',
+                        'Varian tidak dapat dihapus karena masih memiliki stok, riwayat inventaris, reservasi, atau digunakan dalam keranjang pelanggan. Nonaktifkan varian jika tidak ingin digunakan.',
                     ],
                 ]);
             }

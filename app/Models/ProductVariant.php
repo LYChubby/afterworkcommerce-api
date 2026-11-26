@@ -94,4 +94,12 @@ class ProductVariant extends Model
     {
         return $this->hasMany(InventoryReservation::class);
     }
+
+    /**
+     * Varian dapat digunakan pada banyak item keranjang.
+     */
+    public function cartItems(): HasMany
+    {
+        return $this->hasMany(CartItem::class);
+    }
 }

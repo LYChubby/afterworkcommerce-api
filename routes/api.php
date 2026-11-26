@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AdminProductVariantController;
 use App\Http\Controllers\Api\AdminSizeController;
 use App\Http\Controllers\Api\AuthenticatedUserController;
 use App\Http\Controllers\Api\BiteshipWebhookController;
+use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ForgotPasswordController;
 use App\Http\Controllers\Api\GoogleAuthController;
@@ -84,6 +85,19 @@ Route::middleware('auth:sanctum')->group(function () {
     // Customer Addresses
     Route::apiResource('addresses', AddressController::class)
         ->parameters(['addresses' => 'uuid']);
+
+    // Customer Cart
+    Route::get('/cart', [CartController::class, 'index'])
+        ->name('cart.index');
+
+    Route::post('/cart/items', [CartController::class, 'store'])
+        ->name('cart.items.store');
+
+    Route::patch('/cart/items/{variantUuid}', [CartController::class, 'update'])
+        ->name('cart.items.update');
+
+    Route::delete('/cart/items/{variantUuid}', [CartController::class, 'destroy'])
+        ->name('cart.items.destroy');
 
     /*
     |--------------------------------------------------------------------------
