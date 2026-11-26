@@ -199,3 +199,49 @@ it('returns empty options when no courier rates are available', function () {
 
     expect(ShippingQuote::query()->count())->toBe(0);
 });
+
+it('normalizes duplicate variants in shipping quote snapshots', function () {
+    Sanctum::actingAs($this->user);
+
+    Http::fake([
+        'api.biteship.com/v1/rates/couriers' => Http::response([
+            'success' => true,
+            'pricing' => [
+                [
+                    'courier_code' => 'jne',
+                    'courier_name' => 'JNE',
+                    'courier_service_code' => 'reg',
+                    'courier_service_name' => 'Regular',
+                    'shipping_fee' => 12000,
+                    'currency' => 'IDR',
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $response = $this->postJson('/api/shipping/rates', [
+        'postal_code' => '40115',
+        'items' => [
+            [
+                'variant_uuid' => $this->variant->uuid,
+                'quantity' => 2,
+            ],
+            [
+                'variant_uuid' => $this->variant->uuid,
+                'quantity' => 3,
+            ],
+        ],
+    ]);
+
+    $response->assertOk()
+        ->assertJsonPath('success', true);
+
+    $quote = ShippingQuote::query()->firstOrFail();
+
+    expect($quote->items_snapshot)->toBe([
+        [
+            'quantity' => 5,
+            'variant_id' => $this->variant->id,
+        ],
+    ]);
+});

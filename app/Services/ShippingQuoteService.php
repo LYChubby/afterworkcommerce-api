@@ -112,7 +112,7 @@ class ShippingQuoteService
                         ]
                     ),
 
-                    'items_snapshot' => $normalizedItems,
+                    'items_snapshot' => $this->normalizeItems($normalizedItems),
 
                     'courier_code' => $rate['courier_code'],
                     'courier_name' => $rate['courier_name'] ?? '',
